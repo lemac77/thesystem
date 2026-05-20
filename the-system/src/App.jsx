@@ -33,7 +33,7 @@ const sbReq = async (path, opts={}) => {
 const DB = {
   upsert: async (table, rows) => {
     if(!rows?.length) return;
-    await sbReq(table, {method:"POST", prefer:"return=minimal", headers:{"Prefer":"resolution=merge-duplicates,return=minimal"}, body:JSON.stringify(rows.map(r=>({...r,user_id:"andrea"})))});
+    await sbReq(table+"?on_conflict=id", {method:"POST", prefer:"return=minimal", headers:{"Prefer":"resolution=merge-duplicates,return=minimal"}, body:JSON.stringify(rows.map(r=>({...r,user_id:"andrea"})))});
   },
   setSetting: async (key, value) => {
     await sbReq("settings", {method:"POST", headers:{"Prefer":"resolution=merge-duplicates,return=minimal"}, body:JSON.stringify({key, value:JSON.stringify(value), user_id:"andrea"})});
