@@ -1980,6 +1980,32 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
         </Card>
 
         <Card style={{marginBottom:12}}>
+          <Label>6 cose per cui sono grato</Label>
+          <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:4}}>
+            {[0,1,2,3,4,5].map(i=>(
+              <Row key={i} gap={8} style={{alignItems:"center"}}>
+                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.gold,flexShrink:0,width:18}}>{i+1}.</span>
+                <Input
+                  value={(mood.gratitude||[])[i]||""}
+                  onChange={e=>{const g=[...((mood.gratitude)||["","","","","",""])];g[i]=e.target.value;updMood({gratitude:g});}}
+                  placeholder={["Oggi sono grato per...","Una persona che apprezzo...","Qualcosa che ho imparato...","Un momento bello di oggi...","Una cosa che funziona bene nella mia vita...","Qualcosa di piccolo ma prezioso..."][i]}
+                  style={{marginBottom:0,flex:1}}/>
+              </Row>
+            ))}
+          </div>
+        </Card>
+
+        <Card style={{marginBottom:12,borderColor:C.gold+"55",background:`${C.gold}06`}}>
+          <Label style={{color:C.gold}}>Lo sto diventando</Label>
+          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted,marginBottom:8}}>Scrivi al presente — come se fosse già vero</div>
+          <Textarea
+            value={mood.affirmation||""}
+            onChange={e=>updMood({affirmation:e.target.value})}
+            placeholder="Es. Sono una persona disciplinata che costruisce ogni giorno la versione migliore di sé..."
+            style={{minHeight:80,marginBottom:0,borderColor:C.gold+"44"}}/>
+        </Card>
+
+        <Card style={{marginBottom:12}}>
           <Label>Umore</Label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
             {MOOD_EMOJIS.map(e=>(
