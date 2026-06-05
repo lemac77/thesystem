@@ -1900,7 +1900,7 @@ const MoodView = ({moodLog, setMoodLog}) => {
 };
 
 // ─── DIARIO / STORICO ─────────────────────────────────────────────────────────
-const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmokeLog, workoutLog, setWorkoutLog}) => {
+const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmokeLog, workoutLog, setWorkoutLog, focusLog={}, setFocusLog}) => {
   const todayK = todayStr();
   const [selected, setSelected] = useState(todayK);
   const [viewMonth, setViewMonth] = useState(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};});
@@ -1909,6 +1909,8 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
   const diet = dietLog[selected]||{meals:{},mealNotes:{}};
   const cigs = smokeLog[selected]||0;
   const wo = workoutLog[selected];
+  const focusVal = focusLog[selected]??null;
+  const setFocus = val => setFocusLog(prev=>({...prev,[selected]:prev[selected]===val?null:val}));
 
   const updMood = patch => setMoodLog(prev=>({...prev,[selected]:{...(prev[selected]||{}),...patch}}));
   const setCigs = n => setSmokeLog(prev=>({...prev,[selected]:Math.max(0,n)}));
@@ -2065,6 +2067,19 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
               <button onClick={()=>setCigs(cigs+1)} style={{background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:6,color:C.accent,cursor:"pointer",width:38,height:38,fontSize:20,fontWeight:700}}>+</button>
             </Row>
           </Row>
+        </Card>
+
+        <Card style={{marginBottom:12}}>
+          <Label>💭 Pensieri intrusivi oggi?</Label>
+          <Grid cols={2} gap={8} style={{marginTop:6}}>
+            <button onClick={()=>setFocus(true)} style={{background:focusVal===true?"#051a08":C.bg,border:`2px solid ${focusVal===true?C.success:C.border}`,borderRadius:7,color:focusVal===true?C.success:C.textDim,padding:"12px 8px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:14,transition:"all .2s",textAlign:"center"}}>
+              <div style={{fontSize:22,marginBottom:4}}>🧠</div>NO — streak!
+            </button>
+            <button onClick={()=>setFocus(false)} style={{background:focusVal===false?"#1a0505":C.bg,border:`2px solid ${focusVal===false?C.danger:C.border}`,borderRadius:7,color:focusVal===false?C.danger:C.textDim,padding:"12px 8px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:14,transition:"all .2s",textAlign:"center"}}>
+              <div style={{fontSize:22,marginBottom:4}}>💀</div>SÌ — azzera
+            </button>
+          </Grid>
+          {focusVal!==null && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:focusVal?C.success:C.danger,marginTop:8,textAlign:"center"}}>{focusVal?"✓ Nessun pensiero intrusivo":"✗ Pensieri intrusivi presenti"}</div>}
         </Card>
 
         <Card>
@@ -3269,7 +3284,7 @@ Tono diretto, da coach.`;
             {tab==="brainstorm" && <BrainstormView ideas={ideas} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="salute" && <SaluteView workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} dietLog={dietLog} setDietLog={setDietLog} weightLog={weightLog} setWeightLog={setWeightLog}/>}
             {tab==="checkin" && <CheckinView moodLog={moodLog} setMoodLog={setMoodLog} habits={habits} setHabits={setHabits} habitLog={habitLog} setHabitLog={setHabitLog} slotDays={slotDays} slotStart={slotStart} setSlotDays={setSlotDays} setSlotStart={setSlotStart} smokeLog={smokeLog} setSmokeLog={setSmokeLog} focusLog={focusLog} setFocusLog={setFocusLog}/>}
-            {tab==="diary" && <DiaryView moodLog={moodLog} setMoodLog={setMoodLog} dietLog={dietLog} setDietLog={setDietLog} smokeLog={smokeLog} setSmokeLog={setSmokeLog} workoutLog={workoutLog} setWorkoutLog={setWorkoutLog}/>}
+            {tab==="diary" && <DiaryView moodLog={moodLog} setMoodLog={setMoodLog} dietLog={dietLog} setDietLog={setDietLog} smokeLog={smokeLog} setSmokeLog={setSmokeLog} workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} focusLog={focusLog} setFocusLog={setFocusLog}/>}
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
