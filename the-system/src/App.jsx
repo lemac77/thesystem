@@ -1979,6 +1979,16 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
           <Textarea value={mood.diary||""} onChange={e=>updMood({diary:e.target.value})} placeholder="Com'è andata oggi? Pensieri, eventi, riflessioni..." style={{minHeight:120,marginBottom:0}}/>
         </Card>
 
+        <Card style={{marginBottom:12,borderColor:"#9b59b622",background:"#9b59b606"}}>
+          <Label style={{color:"#ce93d8"}}>⚰️ Il mio necrologio di oggi</Label>
+          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted,marginBottom:8}}>Scrivi al passato — brutalmente onesto su come hai vissuto le ultime 24 ore</div>
+          <Textarea
+            value={mood.obituary||""}
+            onChange={e=>updMood({obituary:e.target.value})}
+            placeholder={`Qui giace ${selected===todayStr()?"qualcuno":"qualcuno"} che oggi ha...`}
+            style={{minHeight:100,marginBottom:0,borderColor:"#9b59b644"}}/>
+        </Card>
+
         <Card style={{marginBottom:12}}>
           <Label>6 cose per cui sono grato</Label>
           <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:4}}>
