@@ -2996,11 +2996,13 @@ export default function App() {
 
   const openKeys = () => { setKeyDraft({...apiKeys, sbUrl:LS.get("ts_sb_url",""), sbKey:LS.get("ts_sb_key","")}); setShowKeys(true); };
   const saveKeys = () => {
-    setApiKeys({apify:keyDraft.apify, anthropic:keyDraft.anthropic});
-    LS.set("ts_api_keys",{apify:keyDraft.apify, anthropic:keyDraft.anthropic});
+    const keys = {apify:keyDraft.apify, anthropic:keyDraft.anthropic};
+    setApiKeys(keys);
     if(keyDraft.sbUrl) LS.set("ts_sb_url", keyDraft.sbUrl);
     if(keyDraft.sbKey) LS.set("ts_sb_key", keyDraft.sbKey);
     setSbConnected(!!getSB());
+    // Save to Supabase so it syncs across devices
+    DB.setSetting("api_keys", keys);
     setShowKeys(false);
   };
 
@@ -3073,13 +3075,14 @@ export default function App() {
   useEffect(()=>{
     if(!loaded) return;
     const today = todayStr();
-    const lastAiQuest = LS.get("ts_ai_quest_date","");
-    if(lastAiQuest === today) return;
     const dayOfWeek = new Date().getDay();
     if(dayOfWeek === 0 || dayOfWeek === 6) return;
     const key = apiKeys.anthropic;
     if(!key) return;
-    const timer = setTimeout(async()=>{
+    (async()=>{
+      const lastAiQuest = await DB.getSetting("ai_quest_date","");
+      if(lastAiQuest === today || lastAiQuest === `"${today}"`) return;
+      const timer = setTimeout(async()=>{
       setAiQuestLoading(true);
       try {
         const openTasks = tasks.filter(t=>!t.done).slice(0,5).map(t=>t.text);
@@ -3100,12 +3103,12 @@ Le quest devono essere SPECIFICHE e ACTIONABLE per oggi, NON duplicare i task. R
         if(parsed.quests?.length){
           setAiQuestSuggestions(parsed.quests);
           setAiQuestModal(true);
-          LS.set("ts_ai_quest_date", today);
+          DB.setSetting("ai_quest_date", today);
         }
       } catch(e){ console.log("AI quest failed:", e); }
       setAiQuestLoading(false);
     }, 2000);
-    return ()=>clearTimeout(timer);
+    })();
   },[loaded]);
 
   const generateWeeklyReport = async () => {
