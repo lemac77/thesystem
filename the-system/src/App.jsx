@@ -1899,8 +1899,68 @@ const MoodView = ({moodLog, setMoodLog}) => {
   );
 };
 
+// ─── ASTRO HELPERS ────────────────────────────────────────────────────────────
+const NATAL_DATA = {sun:294,moon:186,asc:285};
+const ZODIAC_SIGNS = ['Ariete','Toro','Gemelli','Cancro','Leone','Vergine','Bilancia','Scorpione','Sagittario','Capricorno','Acquario','Pesci'];
+
+const getJulianDay = (date) => {
+  const y=date.getUTCFullYear(),m=date.getUTCMonth()+1,d=date.getUTCDate();
+  const h=date.getUTCHours()+date.getUTCMinutes()/60;
+  let Y=y,M=m; if(M<=2){Y--;M+=12;}
+  const A=Math.floor(Y/100),B=2-A+Math.floor(A/4);
+  return Math.floor(365.25*(Y+4716))+Math.floor(30.6001*(M+1))+d+h/24+B-1524.5;
+};
+
+const getPlanetPositions = (jd) => {
+  const T=(jd-2451545.0)/36525;
+  let L=280.46646+36000.76983*T;
+  let Msun=357.52911+35999.05029*T-0.0001537*T*T;
+  const Mrad=Msun*Math.PI/180;
+  const C=(1.914602-0.004817*T)*Math.sin(Mrad)+0.019993*Math.sin(2*Mrad);
+  const sun=((L+C)%360+360)%360;
+  let Lm=218.3165+481267.8813*T;
+  let Mm=(134.9634+477198.8676*T)*Math.PI/180;
+  let D=(297.8502+445267.1115*T)*Math.PI/180;
+  const moon=((Lm+6.289*Math.sin(Mm)-1.274*Math.sin(2*D-Mm)+0.658*Math.sin(2*D))%360+360)%360;
+  const mercury=((252.250906+149474.0722491*T+1.914602*Math.sin(Mrad))%360+360)%360;
+  const Mv=(212.7+58517.8*T)*Math.PI/180;
+  const venus=((181.979801+58519.2130302*T+0.7758*Math.sin(Mv))%360+360)%360;
+  const Mma=(19.3729+19140.3*T)*Math.PI/180;
+  const mars=((355.433+19141.6964471*T+1.849*Math.sin(Mma))%360+360)%360;
+  const Mj=(20.9+3034.9*T)*Math.PI/180;
+  const jupiter=((34.351519+3034.9056606*T+5.555*Math.sin(Mj))%360+360)%360;
+  const Ms=(317.0+1222.1*T)*Math.PI/180;
+  const saturn=((50.077444+1223.5110686*T+6.397*Math.sin(Ms))%360+360)%360;
+  return {sun,moon,mercury,venus,mars,jupiter,saturn};
+};
+
+const getZodiacSign = deg => ZODIAC_SIGNS[Math.floor(((deg%360)+360)%360/30)];
+const getPlanetDeg = deg => Math.floor(((deg%360)+360)%360%30);
+const getAspect = (t,n) => { const d=Math.abs(t-n+360)%360; const o=Math.min(d,360-d); if(o<8)return 'congiunzione'; if(Math.abs(o-60)<6)return 'sestile'; if(Math.abs(o-90)<7)return 'quadratura'; if(Math.abs(o-120)<8)return 'trigono'; if(Math.abs(o-180)<8)return 'opposizione'; return null; };
+
+const buildHoroscopePrompt = (pos, dateStr) => {
+  const planets = [
+    ['Sole',pos.sun],['Luna',pos.moon],['Mercurio',pos.mercury],
+    ['Venere',pos.venus],['Marte',pos.mars],['Giove',pos.jupiter],['Saturno',pos.saturn]
+  ].map(([n,p])=>{
+    const sign=getZodiacSign(p), deg=getPlanetDeg(p), asp=getAspect(p,NATAL_DATA.sun);
+    return `${n}: ${sign} ${deg}°${asp?` (${asp} al Sole natale)`:''}`;
+  }).join('\n');
+  return `Sei un astrologo esperto. Oggi è ${dateStr}.
+
+Tema natale di Andrea (Vicenza, 14 gennaio 1996, ore 6:30):
+- Sole: Capricorno 24°
+- Ascendente: Capricorno
+- Luna: Bilancia
+
+Transiti di oggi:
+${planets}
+
+Scrivi una lettura astrologica giornaliera personalizzata in italiano. Tono diretto, concreto, non generico. Parla in seconda persona (tu). Tre sezioni brevi: Lavoro, Relazioni, Energia. Max 180 parole totali. Niente markdown, solo testo plain.`;
+};
+
 // ─── DIARIO / STORICO ─────────────────────────────────────────────────────────
-const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmokeLog, workoutLog, setWorkoutLog, focusLog={}, setFocusLog}) => {
+const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmokeLog, workoutLog, setWorkoutLog, focusLog={}, setFocusLog, anthropicKey}) => {
   const todayK = todayStr();
   const [selected, setSelected] = useState(todayK);
   const [viewMonth, setViewMonth] = useState(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};});
@@ -1911,6 +1971,30 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
   const wo = workoutLog[selected];
   const focusVal = focusLog[selected]??null;
   const setFocus = val => setFocusLog(prev=>({...prev,[selected]:prev[selected]===val?null:val}));
+  const [horoscope, setHoroscope] = useState(null);
+  const [horoscopeLoading, setHoroscopeLoading] = useState(false);
+  const [horoscopeDate, setHoroscopeDate] = useState(null);
+
+  const generateHoroscope = async () => {
+    if(!anthropicKey) return;
+    setHoroscopeLoading(true);
+    try {
+      const now = selected===todayK ? new Date() : new Date(selected+'T12:00:00');
+      const jd = getJulianDay(now);
+      const pos = getPlanetPositions(jd);
+      const dateStr = now.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
+      const prompt = buildHoroscopePrompt(pos, dateStr);
+      const res = await fetch("https://apify-worker.luciettiandrea.workers.dev/anthropic/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":anthropicKey},
+        body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:400,messages:[{role:"user",content:prompt}]})
+      });
+      const d = await res.json();
+      setHoroscope(d.content?.[0]?.text||"Errore nella lettura.");
+      setHoroscopeDate(selected);
+    } catch(e){ setHoroscope("Errore: "+e.message); }
+    setHoroscopeLoading(false);
+  };
 
   const updMood = patch => setMoodLog(prev=>({...prev,[selected]:{...(prev[selected]||{}),...patch}}));
   const setCigs = n => setSmokeLog(prev=>({...prev,[selected]:Math.max(0,n)}));
@@ -2102,6 +2186,19 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
             <Input value={wo.note||""} onChange={e=>updWorkout({note:e.target.value})} placeholder="Es. chest day, nuovo PR..." style={{marginBottom:0}}/>
           </>}
         </Card>
+        <Card style={{marginTop:12,borderColor:C.purple+"44",background:`${C.purple}06`}}>
+          <Row style={{justifyContent:"space-between",alignItems:"center",marginBottom:horoscope&&horoscopeDate===selected?12:0}}>
+            <Label style={{color:"#ce93d8",marginBottom:0}}>♑ Oroscopo del giorno</Label>
+            <Btn size="sm" onClick={generateHoroscope} disabled={!anthropicKey||horoscopeLoading} style={{borderColor:"#ce93d8",color:"#ce93d8",opacity:anthropicKey?1:0.4}}>
+              {horoscopeLoading?"...":"✦ Genera"}
+            </Btn>
+          </Row>
+          {horoscope && horoscopeDate===selected && (
+            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:15,color:C.text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{horoscope}</div>
+          )}
+          {!anthropicKey && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted,marginTop:4}}>Configura la chiave Anthropic dal tasto API</div>}
+        </Card>
+
       </Section>
     </div>
   );
@@ -3284,7 +3381,7 @@ Tono diretto, da coach.`;
             {tab==="brainstorm" && <BrainstormView ideas={ideas} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="salute" && <SaluteView workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} dietLog={dietLog} setDietLog={setDietLog} weightLog={weightLog} setWeightLog={setWeightLog}/>}
             {tab==="checkin" && <CheckinView moodLog={moodLog} setMoodLog={setMoodLog} habits={habits} setHabits={setHabits} habitLog={habitLog} setHabitLog={setHabitLog} slotDays={slotDays} slotStart={slotStart} setSlotDays={setSlotDays} setSlotStart={setSlotStart} smokeLog={smokeLog} setSmokeLog={setSmokeLog} focusLog={focusLog} setFocusLog={setFocusLog}/>}
-            {tab==="diary" && <DiaryView moodLog={moodLog} setMoodLog={setMoodLog} dietLog={dietLog} setDietLog={setDietLog} smokeLog={smokeLog} setSmokeLog={setSmokeLog} workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} focusLog={focusLog} setFocusLog={setFocusLog}/>}
+            {tab==="diary" && <DiaryView moodLog={moodLog} setMoodLog={setMoodLog} dietLog={dietLog} setDietLog={setDietLog} smokeLog={smokeLog} setSmokeLog={setSmokeLog} workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} focusLog={focusLog} setFocusLog={setFocusLog} anthropicKey={apiKeys.anthropic}/>}
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
