@@ -1037,8 +1037,8 @@ const ClientsView = ({clients, setClients}) => {
                     <Chip color={sc[c.stage]||C.textDim} borderColor={sc[c.stage]||C.border}>{c.stage}</Chip>
                   </Row>
                   <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:"clamp(9px,0.9vw,13px)",color:C.textDim,marginBottom:4}}>{c.contact} · {c.sector}</div>
-                  {c.monthlyFee && parseFloat(c.monthlyFee)>0 && (
-                    <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.accent}}>{fmtEur(c.monthlyFee)}<span style={{fontSize:15,color:C.textDim}}>/mese</span></div>
+                  {(c.monthly_fee||c.monthlyFee) && parseFloat(c.monthly_fee||c.monthlyFee)>0 && (
+                    <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.accent}}>{fmtEur(c.monthly_fee||c.monthlyFee)}<span style={{fontSize:15,color:C.textDim}}>/mese</span></div>
                   )}
                   {c.installments?.length>0 && (
                     <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.gold}}>{c.installments.length} rata{c.installments.length>1?"e":""} — tot. {fmtEur(c.installments.reduce((s,i)=>s+(parseFloat(i.amount)||0),0))}</div>
@@ -1143,7 +1143,7 @@ const FinanceView = ({clients, payments, setPayments}) => {
   const isMonthPaid = (clientId) => payments.some(p=>p.clientId===clientId && p.note===`canone-${thisMonth}`);
   const markPaid = (c) => {
     if(isMonthPaid(c.id)) return;
-    const np={id:uid(),clientId:c.id,amount:parseFloat(c.monthlyFee)||0,date:todayISO,note:`canone-${thisMonth}`,expectedId:`rec-${c.id}-${thisMonth}`};setPayments(prev=>[...prev,np]);pushItem('payments',np);
+    const np={id:uid(),clientId:c.id,amount:parseFloat(c.monthly_fee||c.monthlyFee)||0,date:todayISO,note:`canone-${thisMonth}`,expectedId:`rec-${c.id}-${thisMonth}`};setPayments(prev=>[...prev,np]);pushItem('payments',np);
   };
   const unmarkPaid = (clientId) => {
     const toDelRec=payments.filter(p=>p.clientId===clientId && p.note===`canone-${thisMonth}`);
@@ -1159,14 +1159,14 @@ const FinanceView = ({clients, payments, setPayments}) => {
   };
   const unmarkInstPaid = (clientId, instId) => setPayments(payments.filter(p=>p.expectedId!==`exp-${clientId}-${instId}`));
 
-  const recurringClients = clients.filter(c=>c.monthlyFee && parseFloat(c.monthlyFee)>0);
+  const recurringClients = clients.filter(c=>{ const fee=c.monthly_fee||c.monthlyFee; return fee && parseFloat(fee)>0; });
   const spotClients = clients.filter(c=>c.installments?.length>0);
 
   // Stats
   const yearPayments = payments.filter(p=>p.date?.startsWith(thisYear));
   const yearTotal = yearPayments.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
-  const monthPaidTotal = recurringClients.filter(c=>isMonthPaid(c.id)).reduce((s,c)=>s+(parseFloat(c.monthlyFee)||0),0);
-  const monthExpTotal = recurringClients.reduce((s,c)=>s+(parseFloat(c.monthlyFee)||0),0);
+  const monthPaidTotal = recurringClients.filter(c=>isMonthPaid(c.id)).reduce((s,c)=>s+(parseFloat(c.monthly_fee||c.monthlyFee)||0),0);
+  const monthExpTotal = recurringClients.reduce((s,c)=>s+(parseFloat(c.monthly_fee||c.monthlyFee)||0),0);
   const forfPct = Math.min(Math.round(yearTotal/FORFETTARIO_CAP*100),100);
 
   const [manualModal, setManualModal] = useState(false);
@@ -1214,7 +1214,7 @@ const FinanceView = ({clients, payments, setPayments}) => {
               <PayRow key={c.id}
                 label={`Canone mensile`}
                 name={c.name}
-                amount={parseFloat(c.monthlyFee)||0}
+                amount={parseFloat(c.monthly_fee||c.monthlyFee)||0}
                 paid={isMonthPaid(c.id)}
                 onMark={()=>markPaid(c)}
                 onUnmark={()=>unmarkPaid(c.id)}
