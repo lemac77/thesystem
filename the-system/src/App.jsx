@@ -2727,11 +2727,7 @@ const ProjectsView = ({projects, setProjects}) => {
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:(p.tasks||[]).filter(t=>t.id!==tid)}:p));
   };
 
-  const getPct = (p) => {
-    const t = p.tasks||[];
-    if(!t.length) return 0;
-    return Math.round(t.filter(x=>x.done).length/t.length*100);
-  };
+  const getPct = (p) => p.progress||0;
 
   return (
     <div>
@@ -2770,6 +2766,17 @@ const ProjectsView = ({projects, setProjects}) => {
 
               {isOpen && (
                 <div style={{marginTop:4}}>
+                  {/* Manual progress slider */}
+                  <div style={{marginBottom:14,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <Row style={{justifyContent:"space-between",marginBottom:6}}>
+                      <span style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,color:C.textDim,letterSpacing:"0.08em",textTransform:"uppercase"}}>Avanzamento</span>
+                      <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,color:pct===100?C.success:p.color}}>{pct}%</span>
+                    </Row>
+                    <input type="range" min={0} max={100} step={5}
+                      value={pct}
+                      onChange={e=>saveProjects(projects.map(x=>x.id===p.id?{...x,progress:parseInt(e.target.value)}:x))}
+                      style={{width:"100%",accentColor:pct===100?C.success:p.color,cursor:"pointer",height:6}}/>
+                  </div>
                   {tasks.length===0 && (
                     <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textMuted,padding:"8px 0",textAlign:"center"}}>// Nessuna task. Aggiungine una.</div>
                   )}
