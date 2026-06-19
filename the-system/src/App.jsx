@@ -2699,18 +2699,39 @@ const ProjectsView = ({projects, setProjects}) => {
   const [modal, setModal] = useState(false);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#4fc3f7");
+  const [expanded, setExpanded] = useState(null);
+  const [newTask, setNewTask] = useState({});
+
+  const COLORS = ["#4fc3f7","#dfff00","#4caf50","#f44336","#ff9800","#ce93d8","#80cbc4","#fff"];
+
+  const saveProjects = (np) => { setProjects(np); DB.setSetting("projects", np); };
 
   const addProject = () => {
     if(!name.trim()) return;
-    setProjects(prev=>{const np=[...prev, {id:uid(), name:name.trim(), progress:0, color, createdAt:todayStr()}];DB.setSetting("projects",np);return np;});
+    saveProjects([...projects, {id:uid(), name:name.trim(), color, tasks:[], createdAt:todayStr()}]);
     setName(""); setColor("#4fc3f7"); setModal(false);
   };
 
-  const updateProgress = (id, val) => {
-    setProjects(prev=>{const np=prev.map(p=>p.id===id?{...p,progress:val}:p);DB.setSetting("projects",np);return np;});
+  const addTask = (pid) => {
+    const txt = (newTask[pid]||"").trim();
+    if(!txt) return;
+    saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),{id:uid(),text:txt,done:false}]}:p));
+    setNewTask(prev=>({...prev,[pid]:""}));
   };
 
-  const COLORS = ["#4fc3f7","#dfff00","#4caf50","#f44336","#ff9800","#ce93d8","#80cbc4","#fff"];
+  const toggleTask = (pid, tid) => {
+    saveProjects(projects.map(p=>p.id===pid?{...p,tasks:(p.tasks||[]).map(t=>t.id===tid?{...t,done:!t.done}:t)}:p));
+  };
+
+  const deleteTask = (pid, tid) => {
+    saveProjects(projects.map(p=>p.id===pid?{...p,tasks:(p.tasks||[]).filter(t=>t.id!==tid)}:p));
+  };
+
+  const getPct = (p) => {
+    const t = p.tasks||[];
+    if(!t.length) return 0;
+    return Math.round(t.filter(x=>x.done).length/t.length*100);
+  };
 
   return (
     <div>
@@ -2724,29 +2745,54 @@ const ProjectsView = ({projects, setProjects}) => {
       )}
 
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {projects.map(p=>(
-          <Card key={p.id} style={{borderColor:p.progress===100?C.success+"55":p.color+"33"}}>
-            <Row style={{justifyContent:"space-between",marginBottom:12}}>
-              <Row gap={10}>
-                <div style={{width:12,height:12,borderRadius:"50%",background:p.color,flexShrink:0,marginTop:2}}/>
-                <span style={{fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:17,color:p.progress===100?C.success:C.text}}>{p.name}</span>
+        {projects.map(p=>{
+          const pct = getPct(p);
+          const tasks = p.tasks||[];
+          const isOpen = expanded===p.id;
+          return (
+            <Card key={p.id} style={{borderColor:pct===100?C.success+"55":p.color+"44"}}>
+              <Row style={{justifyContent:"space-between",marginBottom:8}}>
+                <Row gap={10} style={{flex:1,cursor:"pointer",minWidth:0}} onClick={()=>setExpanded(isOpen?null:p.id)}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:p.color,flexShrink:0,marginTop:3}}/>
+                  <span style={{fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:17,color:pct===100?C.success:C.text}}>{p.name}</span>
+                </Row>
+                <Row gap={8} style={{flexShrink:0}}>
+                  <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,color:pct===100?C.success:p.color}}>{tasks.filter(t=>t.done).length}/{tasks.length}</span>
+                  <span style={{fontFamily:"'Cinzel',serif",fontSize:15,fontWeight:700,color:pct===100?C.success:p.color}}>{pct}%</span>
+                  <button onClick={()=>setExpanded(isOpen?null:p.id)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:4,color:C.textDim,cursor:"pointer",fontSize:13,padding:"2px 8px"}}>{isOpen?"▲":"▼"}</button>
+                  <button onClick={()=>saveProjects(projects.filter(x=>x.id!==p.id))} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:15}}>×</button>
+                </Row>
               </Row>
-              <Row gap={8}>
-                <span style={{fontFamily:"'Cinzel',serif",fontSize:17,fontWeight:700,color:p.progress===100?C.success:p.color}}>{p.progress}%</span>
-                <button onClick={()=>setProjects(prev=>{const np=prev.filter(x=>x.id!==p.id);DB.setSetting("projects",np);return np;})} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:16}}>×</button>
-              </Row>
-            </Row>
-            <input
-              type="range" min={0} max={100} step={5}
-              value={p.progress}
-              onChange={e=>updateProgress(p.id,parseInt(e.target.value))}
-              style={{width:"100%",accentColor:p.progress===100?C.success:p.color,cursor:"pointer",height:6}}
-            />
-            {p.progress===100 && (
-              <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.success,marginTop:8,textAlign:"center"}}>✓ COMPLETATO</div>
-            )}
-          </Card>
-        ))}
+
+              <div style={{height:5,background:C.border,borderRadius:3,marginBottom:isOpen?14:0,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:pct===100?C.success:p.color,borderRadius:3,transition:"width .3s"}}/>
+              </div>
+
+              {isOpen && (
+                <div style={{marginTop:4}}>
+                  {tasks.length===0 && (
+                    <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textMuted,padding:"8px 0",textAlign:"center"}}>// Nessuna task. Aggiungine una.</div>
+                  )}
+                  {tasks.map(t=>(
+                    <Row key={t.id} gap={10} style={{padding:"8px 4px",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
+                      <button onClick={()=>toggleTask(p.id,t.id)} style={{width:20,height:20,borderRadius:4,border:`2px solid ${t.done?p.color:C.border}`,background:t.done?p.color:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                        {t.done && <span style={{color:"#000",fontSize:12,fontWeight:900}}>✓</span>}
+                      </button>
+                      <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:14,color:t.done?C.textMuted:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span>
+                      <button onClick={()=>deleteTask(p.id,t.id)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
+                    </Row>
+                  ))}
+                  <Row gap={8} style={{marginTop:10}}>
+                    <Input value={newTask[p.id]||""} onChange={e=>setNewTask(prev=>({...prev,[p.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask(p.id)} placeholder="Nuova task..." style={{marginBottom:0,flex:1,fontSize:13}}/>
+                    <Btn size="sm" onClick={()=>addTask(p.id)} style={{flexShrink:0}}>+</Btn>
+                  </Row>
+                </div>
+              )}
+
+              {pct===100 && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.success,marginTop:8,textAlign:"center"}}>✓ COMPLETATO</div>}
+            </Card>
+          );
+        })}
       </div>
 
       {modal && (
@@ -2768,6 +2814,7 @@ const ProjectsView = ({projects, setProjects}) => {
     </div>
   );
 };
+
 
 const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthropicKey,onNeedKey,clients=[]}) => {
   const [subtab, setSubtab] = useState("tasks");
