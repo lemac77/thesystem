@@ -1572,10 +1572,9 @@ XP da 5 a 25 in base alla difficoltà/importanza. Max 5 task. Niente altro oltre
     deleteItem("tasks", id);
   };
 
-  const clientTasks = clientFilter==="all" ? tasks : clientFilter==="none" ? tasks.filter(t=>!t.client_id) : tasks.filter(t=>t.client_id===clientFilter);
-  const todo = clientTasks.filter(t=>!t.done);
-  const done = clientTasks.filter(t=>t.done);
-  const shown = filter==="todo"?todo:filter==="done"?done:clientTasks;
+  const todo = tasks.filter(t=>!t.done);
+  const done = tasks.filter(t=>t.done);
+  const shown = filter==="todo"?todo:filter==="done"?done:tasks;
   const totalXP = done.reduce((s,t)=>s+(t.xp||15),0);
 
   return (
@@ -1586,15 +1585,6 @@ XP da 5 a 25 in base alla difficoltà/importanza. Max 5 task. Niente altro oltre
           <Btn size="sm" variant="ghost" onClick={async()=>{const d=await DB.pullAll();if(d?.tasks)setTasks(d.tasks);}} style={{fontSize:13}}>🔄</Btn>
         </Row>
       }>
-        {/* Client filter pills */}
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-          <button onClick={()=>setClientFilter("all")} style={{background:clientFilter==="all"?C.accentDim:"transparent",border:`1px solid ${clientFilter==="all"?C.accent:C.border}`,borderRadius:20,color:clientFilter==="all"?C.accent:C.textDim,cursor:"pointer",padding:"4px 12px",fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,transition:"all .15s"}}>Tutte</button>
-          <button onClick={()=>setClientFilter("none")} style={{background:clientFilter==="none"?C.accentDim:"transparent",border:`1px solid ${clientFilter==="none"?C.accent:C.border}`,borderRadius:20,color:clientFilter==="none"?C.accent:C.textDim,cursor:"pointer",padding:"4px 12px",fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,transition:"all .15s"}}>Generale</button>
-          {clients.map(c=>(
-            <button key={c.id} onClick={()=>setClientFilter(c.id)} style={{background:clientFilter===c.id?C.accentDim:"transparent",border:`1px solid ${clientFilter===c.id?C.accent:C.border}`,borderRadius:20,color:clientFilter===c.id?C.accent:C.textDim,cursor:"pointer",padding:"4px 12px",fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,transition:"all .15s"}}>{c.name}</button>
-          ))}
-        </div>
-
         <Card glow color={C.purple} style={{marginBottom:14}}>
           <Label>Scrivi in modo libero — AI converte in task</Label>
           <Textarea
@@ -1604,12 +1594,7 @@ XP da 5 a 25 in base alla difficoltà/importanza. Max 5 task. Niente altro oltre
             placeholder="Es. devo mandare preventivo a Marco, sistemare il sito Vitamin Store, rispondere alle mail..."
             style={{minHeight:65,marginBottom:8}}
           />
-          {clients.length>0 && (
-            <Select value={taskClientId} onChange={e=>setTaskClientId(e.target.value)} style={{marginBottom:8,fontSize:13}}>
-              <option value="">Nessun cliente (Generale)</option>
-              {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          )}
+
           <Btn style={{width:"100%",justifyContent:"center",opacity:loading?.6:1,borderColor:C.purple,color:C.purple,background:`${C.purple}15`}} onClick={parseAndAdd} disabled={loading}>
             {loading?"[ AI sta elaborando... ]":"[ + AGGIUNGI TASK — ⌘+Enter ]"}
           </Btn>
@@ -1636,12 +1621,7 @@ XP da 5 a 25 in base alla difficoltà/importanza. Max 5 task. Niente altro oltre
               <button onClick={()=>toggle(t.id)} style={{width:17,height:17,borderRadius:3,border:`1px solid ${t.done?C.purple:C.borderHi}`,background:t.done?C.purple:"transparent",cursor:"pointer",flexShrink:0,fontSize:16,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
                 {t.done&&"✓"}
               </button>
-              <div style={{flex:1}}>
-                <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:t.done?C.textDim:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span>
-                {t.client_id && clients.find(c=>c.id===t.client_id) && (
-                  <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:11,color:C.accent,marginTop:2,letterSpacing:"0.06em"}}>{clients.find(c=>c.id===t.client_id)?.name}</div>
-                )}
-              </div>
+              <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:t.done?C.textDim:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span>
               <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:t.done?C.purple:C.textMuted,flexShrink:0}}>+{t.xp||15}xp</span>
               <button onClick={()=>del(t.id)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
             </div>
