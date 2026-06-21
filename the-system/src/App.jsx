@@ -205,6 +205,22 @@ const sbAuth = {
       return {error:d.error_description||d.error||d.msg||"Credenziali non valide"};
     } catch(e) { return {error:e.message}; }
   },
+  changePassword: async (newPassword) => {
+    const sb = getSB();
+    if(!sb) return {error:"Supabase non configurato"};
+    const token = await sbAuth.getValidToken();
+    if(!token) return {error:"Non sei loggato"};
+    try {
+      const res = await fetch(`${sb.url}/auth/v1/user`, {
+        method:"PUT",
+        headers:{"apikey":sb.key,"Content-Type":"application/json","Authorization":`Bearer ${token}`},
+        body:JSON.stringify({password:newPassword})
+      });
+      const d = await res.json();
+      if(d.id) return {ok:true};
+      return {error:d.error_description||d.msg||d.error||"Errore nel cambio password"};
+    } catch(e) { return {error:e.message}; }
+  },
   refresh: async () => {
     const sb = getSB();
     const refreshToken = localStorage.getItem("ts_auth_refresh");
@@ -3025,6 +3041,47 @@ const CheckinView = ({moodLog,setMoodLog,habits,setHabits,habitLog,setHabitLog,s
 };
 
 // ─── SETTINGS VIEW ────────────────────────────────────────────────────────────
+const ChangePasswordCard = () => {
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const submit = async () => {
+    setMsg(null);
+    if(pw1.length < 6){ setMsg({type:"err",text:"La password deve avere almeno 6 caratteri"}); return; }
+    if(pw1 !== pw2){ setMsg({type:"err",text:"Le password non coincidono"}); return; }
+    setLoading(true);
+    const res = await sbAuth.changePassword(pw1);
+    setLoading(false);
+    if(res.ok){ setMsg({type:"ok",text:"Password cambiata con successo"}); setPw1(""); setPw2(""); }
+    else setMsg({type:"err",text:res.error||"Errore"});
+  };
+
+  return (
+    <Card style={{marginBottom:10,borderColor:C.borderHi}}>
+      {!open ? (
+        <button onClick={()=>setOpen(true)} style={{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:15,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
+          🔑 Cambia Password
+        </button>
+      ) : (
+        <>
+          <Label>Nuova password</Label>
+          <Input type="password" value={pw1} onChange={e=>setPw1(e.target.value)} placeholder="Almeno 6 caratteri"/>
+          <Label>Conferma password</Label>
+          <Input type="password" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Ripeti la password" onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          {msg && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:msg.type==="ok"?C.success:C.danger,marginBottom:10}}>{msg.text}</div>}
+          <Row gap={8}>
+            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>{setOpen(false);setMsg(null);setPw1("");setPw2("");}}>Annulla</Btn>
+            <Btn style={{flex:2,justifyContent:"center"}} onClick={submit} disabled={loading}>{loading?"...":"[ SALVA ]"}</Btn>
+          </Row>
+        </>
+      )}
+    </Card>
+  );
+};
+
 const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,payments,workoutLog,dietLog,moodLog,weightLog,habits,habitLog,slotDays,slotStart,apiKeys,keyDraft,setKeyDraft,saveKeys,onSyncNow}) => {
   return (
     <div className="fi">
@@ -3123,6 +3180,7 @@ const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,pa
       </Section>
 
       <Section title="Account">
+        <ChangePasswordCard/>
         <Card style={{borderColor:C.danger+"33"}}>
           <button onClick={()=>{if(window.confirm("Sei sicuro di voler uscire?")){sbAuth.signOut();window.location.reload();}}} style={{width:"100%",background:"none",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:15,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
             [ LOGOUT — ESCI DAL SISTEMA ]
