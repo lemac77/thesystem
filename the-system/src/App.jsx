@@ -3608,6 +3608,38 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [recoveryToken, setRecoveryToken] = useState(null);
+  const [recoveryPw, setRecoveryPw] = useState("");
+  const [recoveryMsg, setRecoveryMsg] = useState(null);
+
+  // Handle password recovery link (token in URL hash)
+  useEffect(()=>{
+    const hash = window.location.hash;
+    if(hash && hash.includes("access_token") && hash.includes("type=recovery")){
+      const params = new URLSearchParams(hash.slice(1));
+      const token = params.get("access_token");
+      if(token){
+        setRecoveryToken(token);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  },[]);
+
+  const submitRecovery = async () => {
+    setRecoveryMsg(null);
+    if(recoveryPw.length < 6){ setRecoveryMsg({type:"err",text:"Almeno 6 caratteri"}); return; }
+    const sb = getSB();
+    try {
+      const res = await fetch(`${sb.url}/auth/v1/user`, {
+        method:"PUT",
+        headers:{"apikey":sb.key,"Content-Type":"application/json","Authorization":`Bearer ${recoveryToken}`},
+        body:JSON.stringify({password:recoveryPw})
+      });
+      const d = await res.json();
+      if(d.id){ setRecoveryMsg({type:"ok",text:"Password cambiata! Ora accedi."}); setTimeout(()=>setRecoveryToken(null),2000); }
+      else setRecoveryMsg({type:"err",text:d.msg||d.error_description||"Errore"});
+    } catch(e){ setRecoveryMsg({type:"err",text:e.message}); }
+  };
 
   const handleLogin = async () => {
     setLoginLoading(true); setLoginError("");
@@ -3840,6 +3872,27 @@ Tono diretto, da coach.`;
     calendar:"M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
     settings:"M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
   };
+
+  if(recoveryToken) {
+    return (
+      <div style={{minHeight:"100dvh",background:"#03030a",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <GS/>
+        <div style={{width:"100%",maxWidth:380}}>
+          <div style={{textAlign:"center",marginBottom:32}}>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:24,fontWeight:900,color:"#4fc3f7",letterSpacing:"0.2em"}} className="rp">RECUPERO PASSWORD</div>
+          </div>
+          <div style={{background:"#07071a",border:"1px solid #1a1a3a",borderRadius:10,padding:28}}>
+            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:11,color:"#384560",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:6}}>Nuova password</div>
+            <input type="password" value={recoveryPw} onChange={e=>setRecoveryPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitRecovery()} placeholder="Almeno 6 caratteri" style={{width:"100%",background:"#03030a",border:"1px solid #1a1a3a",borderRadius:6,color:"#ccd6f0",padding:"11px 13px",fontSize:14,fontFamily:"'Share Tech Mono',monospace",outline:"none",boxSizing:"border-box",marginBottom:16}}/>
+            {recoveryMsg && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:recoveryMsg.type==="ok"?"#4caf50":"#f44336",marginBottom:14}}>{recoveryMsg.text}</div>}
+            <button onClick={submitRecovery} style={{width:"100%",background:"#0a0a2a",border:"1px solid #4fc3f7",borderRadius:6,color:"#4fc3f7",padding:"13px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
+              [ IMPOSTA PASSWORD ]
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if(!session && getSB()) {
     return (
