@@ -3150,13 +3150,18 @@ const gcalGetToken = () => {
 // PKCE helpers
 const gcalGenVerifier = () => {
   const arr = new Uint8Array(32);
-  crypto.getRandomValues(arr);
-  return btoa(String.fromCharCode(...arr)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  try { crypto.getRandomValues(arr); } catch { for(let i=0;i<32;i++) arr[i]=Math.floor(Math.random()*256); }
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,43);
 };
 const gcalGenChallenge = async (verifier) => {
-  const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  try {
+    const data = new TextEncoder().encode(verifier);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  } catch {
+    // Fallback: use verifier as challenge (plain method)
+    return verifier;
+  }
 };
 
 const gcalLogin = async () => {
@@ -3282,11 +3287,13 @@ const CalendarView = () => {
 
   useEffect(()=>{
     (async()=>{
-      const handled = await gcalHandleCallback();
-      if(handled){
-        const tk = await gcalGetValidToken();
-        setToken(tk);
-      }
+      try {
+        const handled = await gcalHandleCallback();
+        if(handled){
+          const tk = await gcalGetValidToken();
+          setToken(tk);
+        }
+      } catch(e){ console.error("gcal init:", e); }
     })();
   },[]);
 
@@ -3865,7 +3872,7 @@ Tono diretto, da coach.`;
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
-            {tab==="calendar" && <CalendarView/>}
+            {tab==="calendar" && (() => { try { return <CalendarView/>; } catch(e) { return <div style={{padding:20,color:"red",fontFamily:"monospace"}}>Errore calendario: {e.message}</div>; } })()}
             {tab==="settings" && <SettingsView quests={quests} setQuests={setQuests} clients={clients} leads={leads} tasks={tasks} ideas={ideas} goals={goals} notes={notes} payments={payments} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} weightLog={weightLog} habits={habits} habitLog={habitLog} slotDays={slotDays} slotStart={slotStart} apiKeys={apiKeys} keyDraft={keyDraft} setKeyDraft={setKeyDraft} saveKeys={saveKeys} onSyncNow={()=>DB.pushAll(stateRef.current)}/>}
           </>
         )}
