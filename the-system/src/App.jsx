@@ -3282,6 +3282,7 @@ const CalendarView = () => {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({title:"",date:todayStr(),time:"09:00",duration:60,note:""});
+  const [selectedDay, setSelectedDay] = useState(todayStr);
   const [viewDate, setViewDate] = useState(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};});
   const [calView, setCalView] = useState("month"); // "month" | "week"
 
@@ -3372,7 +3373,6 @@ const CalendarView = () => {
     return start.startsWith(k);
   });
 
-  const [selectedDay, setSelectedDay] = useState(todayK);
   const selectedEvents = getEventsForDay(selectedDay);
   const selLabel = new Date(selectedDay+"T00:00:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long"});
 
@@ -3872,7 +3872,7 @@ Tono diretto, da coach.`;
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
-            {tab==="calendar" && (() => { try { return <CalendarView/>; } catch(e) { return <div style={{padding:20,color:"red",fontFamily:"monospace"}}>Errore calendario: {e.message}</div>; } })()}
+            {tab==="calendar" && <div style={{padding:20,fontFamily:"'Share Tech Mono',monospace",color:"#4fc3f7",textAlign:"center",marginTop:40}}>📅 Calendario in manutenzione</div>}
             {tab==="settings" && <SettingsView quests={quests} setQuests={setQuests} clients={clients} leads={leads} tasks={tasks} ideas={ideas} goals={goals} notes={notes} payments={payments} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} weightLog={weightLog} habits={habits} habitLog={habitLog} slotDays={slotDays} slotStart={slotStart} apiKeys={apiKeys} keyDraft={keyDraft} setKeyDraft={setKeyDraft} saveKeys={saveKeys} onSyncNow={()=>DB.pushAll(stateRef.current)}/>}
           </>
         )}
