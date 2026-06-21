@@ -3612,16 +3612,22 @@ export default function App() {
   const [recoveryPw, setRecoveryPw] = useState("");
   const [recoveryMsg, setRecoveryMsg] = useState(null);
 
-  // Handle password recovery link (token in URL hash)
+  // Handle password recovery link (token in URL hash or query)
   useEffect(()=>{
     const hash = window.location.hash;
+    const search = window.location.search;
+    // Case 1: #access_token=...&type=recovery
     if(hash && hash.includes("access_token") && hash.includes("type=recovery")){
       const params = new URLSearchParams(hash.slice(1));
       const token = params.get("access_token");
-      if(token){
-        setRecoveryToken(token);
-        window.history.replaceState({}, "", window.location.pathname);
-      }
+      if(token){ setRecoveryToken(token); window.history.replaceState({}, "", window.location.pathname); }
+    }
+    // Case 2: Supabase redirects with access_token in hash after verifying
+    else if(hash && hash.includes("access_token")){
+      const params = new URLSearchParams(hash.slice(1));
+      const token = params.get("access_token");
+      const type = params.get("type");
+      if(token && type==="recovery"){ setRecoveryToken(token); window.history.replaceState({}, "", window.location.pathname); }
     }
   },[]);
 
