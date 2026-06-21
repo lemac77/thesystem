@@ -3147,30 +3147,101 @@ const gcalGetToken = () => {
   } catch { return null; }
 };
 
-const gcalLogin = () => {
+// PKCE helpers
+const gcalGenVerifier = () => {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+};
+const gcalGenChallenge = async (verifier) => {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+};
+
+const gcalLogin = async () => {
+  const verifier = gcalGenVerifier();
+  const challenge = await gcalGenChallenge(verifier);
+  localStorage.setItem("ts_gcal_verifier", verifier);
   const params = new URLSearchParams({
     client_id: GCAL_CLIENT_ID,
     redirect_uri: GCAL_REDIRECT,
-    response_type: "token",
+    response_type: "code",
     scope: GCAL_SCOPE,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    access_type: "offline",
     prompt: "consent",
   });
   window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 };
 
-const gcalHandleCallback = () => {
-  const hash = window.location.hash;
-  if(!hash) return false;
-  const params = new URLSearchParams(hash.slice(1));
-  const access_token = params.get("access_token");
-  const expires_in = params.get("expires_in");
-  if(!access_token) return false;
-  localStorage.setItem("ts_gcal_token", JSON.stringify({
-    access_token,
-    expires_at: Date.now() + parseInt(expires_in||3600)*1000
-  }));
-  window.history.replaceState({}, "", window.location.pathname);
-  return true;
+const gcalHandleCallback = async () => {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if(!code) return false;
+  const verifier = localStorage.getItem("ts_gcal_verifier");
+  if(!verifier) return false;
+  try {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body: new URLSearchParams({
+        code,
+        client_id: GCAL_CLIENT_ID,
+        redirect_uri: GCAL_REDIRECT,
+        grant_type: "authorization_code",
+        code_verifier: verifier,
+      })
+    });
+    const d = await res.json();
+    if(d.access_token){
+      localStorage.setItem("ts_gcal_token", JSON.stringify({
+        access_token: d.access_token,
+        refresh_token: d.refresh_token||"",
+        expires_at: Date.now() + (d.expires_in||3600)*1000
+      }));
+      localStorage.removeItem("ts_gcal_verifier");
+      window.history.replaceState({}, "", window.location.pathname);
+      return true;
+    }
+  } catch(e){ console.error("gcal token exchange failed:", e); }
+  return false;
+};
+
+const gcalRefreshToken = async () => {
+  try {
+    const t = JSON.parse(localStorage.getItem("ts_gcal_token")||"null");
+    if(!t?.refresh_token) return null;
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body: new URLSearchParams({
+        client_id: GCAL_CLIENT_ID,
+        grant_type: "refresh_token",
+        refresh_token: t.refresh_token,
+      })
+    });
+    const d = await res.json();
+    if(d.access_token){
+      localStorage.setItem("ts_gcal_token", JSON.stringify({
+        ...t,
+        access_token: d.access_token,
+        expires_at: Date.now() + (d.expires_in||3600)*1000
+      }));
+      return d.access_token;
+    }
+  } catch(e){ console.error("gcal refresh failed:", e); }
+  return null;
+};
+
+const gcalGetValidToken = async () => {
+  const t = JSON.parse(localStorage.getItem("ts_gcal_token")||"null");
+  if(!t) return null;
+  if(Date.now() > t.expires_at - 5*60*1000){
+    return await gcalRefreshToken();
+  }
+  return t.access_token;
 };
 
 const gcalFetchEvents = async (token, days=30) => {
@@ -3210,7 +3281,13 @@ const CalendarView = () => {
   const [calView, setCalView] = useState("month"); // "month" | "week"
 
   useEffect(()=>{
-    if(gcalHandleCallback()) { setToken(gcalGetToken()); }
+    (async()=>{
+      const handled = await gcalHandleCallback();
+      if(handled){
+        const tk = await gcalGetValidToken();
+        setToken(tk);
+      }
+    })();
   },[]);
 
   useEffect(()=>{
@@ -3219,22 +3296,30 @@ const CalendarView = () => {
       setLoading(true);
       const evs = await gcalFetchEvents(token, 60);
       if(evs) setEvents(evs);
+      else {
+        // Token might be expired, try refresh
+        const newTk = await gcalRefreshToken();
+        if(newTk){ setToken(newTk); }
+        else { setToken(null); }
+      }
       setLoading(false);
     })();
   },[token]);
 
   const createEvent = async () => {
-    if(!token||!form.title.trim()) return;
+    const tk = await gcalGetValidToken();
+    if(!tk||!form.title.trim()) return;
+    if(tk!==token) setToken(tk);
     const start = new Date(`${form.date}T${form.time}:00`);
     const end = new Date(start.getTime()+form.duration*60000);
-    const ok = await gcalCreateEvent(token, {
+    const ok = await gcalCreateEvent(tk, {
       summary: form.title,
       description: form.note,
       start: {dateTime: start.toISOString(), timeZone: "Europe/Rome"},
       end: {dateTime: end.toISOString(), timeZone: "Europe/Rome"},
     });
     if(ok){
-      const evs = await gcalFetchEvents(token, 60);
+      const evs = await gcalFetchEvents(tk, 60);
       if(evs) setEvents(evs);
       setModal(false);
       setForm({title:"",date:todayStr(),time:"09:00",duration:60,note:""});
@@ -3242,8 +3327,9 @@ const CalendarView = () => {
   };
 
   const deleteEvent = async (id) => {
-    if(!token) return;
-    await gcalDeleteEvent(token, id);
+    const tk = await gcalGetValidToken();
+    if(!tk) return;
+    await gcalDeleteEvent(tk, id);
     setEvents(prev=>prev.filter(e=>e.id!==id));
   };
 
@@ -3290,7 +3376,7 @@ const CalendarView = () => {
           <div style={{fontSize:48,marginBottom:16}}>📅</div>
           <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:18,color:C.text,marginBottom:8}}>Connetti Google Calendar</div>
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,color:C.textDim,marginBottom:24}}>Accedi con il tuo account Google per vedere e gestire i tuoi eventi</div>
-          <Btn onClick={gcalLogin} style={{justifyContent:"center",margin:"0 auto"}}>[ Connetti con Google ]</Btn>
+          <Btn onClick={()=>gcalLogin()} style={{justifyContent:"center",margin:"0 auto"}}>[ Connetti con Google ]</Btn>
         </Card>
       </Section>
     </div>
