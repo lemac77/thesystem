@@ -205,22 +205,6 @@ const sbAuth = {
       return {error:d.error_description||d.error||d.msg||"Credenziali non valide"};
     } catch(e) { return {error:e.message}; }
   },
-  changePassword: async (newPassword) => {
-    const sb = getSB();
-    if(!sb) return {error:"Supabase non configurato"};
-    const token = await sbAuth.getValidToken();
-    if(!token) return {error:"Non sei loggato"};
-    try {
-      const res = await fetch(`${sb.url}/auth/v1/user`, {
-        method:"PUT",
-        headers:{"apikey":sb.key,"Content-Type":"application/json","Authorization":`Bearer ${token}`},
-        body:JSON.stringify({password:newPassword})
-      });
-      const d = await res.json();
-      if(d.id) return {ok:true};
-      return {error:d.error_description||d.msg||d.error||"Errore nel cambio password"};
-    } catch(e) { return {error:e.message}; }
-  },
   refresh: async () => {
     const sb = getSB();
     const refreshToken = localStorage.getItem("ts_auth_refresh");
@@ -2120,28 +2104,6 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
             style={{minHeight:80,marginBottom:0,borderColor:C.gold+"44"}}/>
         </Card>
 
-        <Card style={{marginBottom:12,borderColor:"#4fc3f744",background:"#4fc3f706"}}>
-          <Label style={{color:"#4fc3f7"}}>🌱 Kaizen — Piccole domande, grandi cambiamenti</Label>
-          <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:8}}>
-            {[
-              {area:"💼 Lavoro", q:"Qual è la cosa più piccola che posso fare oggi per far avanzare un progetto?", k:"kaizen_lavoro"},
-              {area:"💪 Salute", q:"Cosa posso fare oggi, anche di minimo, per trattare meglio il mio corpo?", k:"kaizen_salute"},
-              {area:"🧠 Mindset", q:"Qual è un pensiero limitante che posso sfidare oggi con un'azione piccola?", k:"kaizen_mindset"},
-              {area:"❤️ Relazioni", q:"Chi potrei contattare o ringraziare oggi, anche con un solo messaggio?", k:"kaizen_relazioni"},
-            ].map(({area,q,k})=>(
-              <div key={k}>
-                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,color:"#4fc3f7",marginBottom:2}}>{area}</div>
-                <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{q}</div>
-                <Textarea
-                  value={mood[k]||""}
-                  onChange={e=>updMood({[k]:e.target.value})}
-                  placeholder="Scrivi qui la tua risposta..."
-                  style={{minHeight:60,marginBottom:0,fontSize:13}}/>
-              </div>
-            ))}
-          </div>
-        </Card>
-
         <Card style={{marginBottom:12}}>
           <Label>Umore</Label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
@@ -3041,47 +3003,6 @@ const CheckinView = ({moodLog,setMoodLog,habits,setHabits,habitLog,setHabitLog,s
 };
 
 // ─── SETTINGS VIEW ────────────────────────────────────────────────────────────
-const ChangePasswordCard = () => {
-  const [pw1, setPw1] = useState("");
-  const [pw2, setPw2] = useState("");
-  const [msg, setMsg] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-
-  const submit = async () => {
-    setMsg(null);
-    if(pw1.length < 6){ setMsg({type:"err",text:"La password deve avere almeno 6 caratteri"}); return; }
-    if(pw1 !== pw2){ setMsg({type:"err",text:"Le password non coincidono"}); return; }
-    setLoading(true);
-    const res = await sbAuth.changePassword(pw1);
-    setLoading(false);
-    if(res.ok){ setMsg({type:"ok",text:"Password cambiata con successo"}); setPw1(""); setPw2(""); }
-    else setMsg({type:"err",text:res.error||"Errore"});
-  };
-
-  return (
-    <Card style={{marginBottom:10,borderColor:C.borderHi}}>
-      {!open ? (
-        <button onClick={()=>setOpen(true)} style={{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:15,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
-          🔑 Cambia Password
-        </button>
-      ) : (
-        <>
-          <Label>Nuova password</Label>
-          <Input type="password" value={pw1} onChange={e=>setPw1(e.target.value)} placeholder="Almeno 6 caratteri"/>
-          <Label>Conferma password</Label>
-          <Input type="password" value={pw2} onChange={e=>setPw2(e.target.value)} placeholder="Ripeti la password" onKeyDown={e=>e.key==="Enter"&&submit()}/>
-          {msg && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:msg.type==="ok"?C.success:C.danger,marginBottom:10}}>{msg.text}</div>}
-          <Row gap={8}>
-            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>{setOpen(false);setMsg(null);setPw1("");setPw2("");}}>Annulla</Btn>
-            <Btn style={{flex:2,justifyContent:"center"}} onClick={submit} disabled={loading}>{loading?"...":"[ SALVA ]"}</Btn>
-          </Row>
-        </>
-      )}
-    </Card>
-  );
-};
-
 const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,payments,workoutLog,dietLog,moodLog,weightLog,habits,habitLog,slotDays,slotStart,apiKeys,keyDraft,setKeyDraft,saveKeys,onSyncNow}) => {
   return (
     <div className="fi">
@@ -3180,417 +3101,12 @@ const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,pa
       </Section>
 
       <Section title="Account">
-        <ChangePasswordCard/>
         <Card style={{borderColor:C.danger+"33"}}>
           <button onClick={()=>{if(window.confirm("Sei sicuro di voler uscire?")){sbAuth.signOut();window.location.reload();}}} style={{width:"100%",background:"none",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:15,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
             [ LOGOUT — ESCI DAL SISTEMA ]
           </button>
         </Card>
       </Section>
-    </div>
-  );
-};
-
-// ─── GOOGLE CALENDAR ──────────────────────────────────────────────────────────
-const GCAL_CLIENT_ID = "121284875481-blaljm3eu70ja9o1mmp385nvdkpspv85.apps.googleusercontent.com";
-const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar";
-const GCAL_REDIRECT = "https://lemac77.github.io/thesystem";
-
-const gcalGetToken = () => {
-  try {
-    const t = JSON.parse(localStorage.getItem("ts_gcal_token")||"null");
-    if(!t) return null;
-    if(Date.now() > t.expires_at) { localStorage.removeItem("ts_gcal_token"); return null; }
-    return t.access_token;
-  } catch { return null; }
-};
-
-// PKCE helpers
-const gcalGenVerifier = () => {
-  const arr = new Uint8Array(32);
-  try { crypto.getRandomValues(arr); } catch { for(let i=0;i<32;i++) arr[i]=Math.floor(Math.random()*256); }
-  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,43);
-};
-const gcalGenChallenge = async (verifier) => {
-  try {
-    const data = new TextEncoder().encode(verifier);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-  } catch {
-    // Fallback: use verifier as challenge (plain method)
-    return verifier;
-  }
-};
-
-const gcalLogin = async () => {
-  const verifier = gcalGenVerifier();
-  const challenge = await gcalGenChallenge(verifier);
-  localStorage.setItem("ts_gcal_verifier", verifier);
-  const params = new URLSearchParams({
-    client_id: GCAL_CLIENT_ID,
-    redirect_uri: GCAL_REDIRECT,
-    response_type: "code",
-    scope: GCAL_SCOPE,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-    access_type: "offline",
-    prompt: "consent",
-  });
-  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-};
-
-const gcalHandleCallback = async () => {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get("code");
-  if(!code) return false;
-  const verifier = localStorage.getItem("ts_gcal_verifier");
-  if(!verifier) return false;
-  try {
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method:"POST",
-      headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body: new URLSearchParams({
-        code,
-        client_id: GCAL_CLIENT_ID,
-        redirect_uri: GCAL_REDIRECT,
-        grant_type: "authorization_code",
-        code_verifier: verifier,
-      })
-    });
-    const d = await res.json();
-    if(d.access_token){
-      localStorage.setItem("ts_gcal_token", JSON.stringify({
-        access_token: d.access_token,
-        refresh_token: d.refresh_token||"",
-        expires_at: Date.now() + (d.expires_in||3600)*1000
-      }));
-      localStorage.removeItem("ts_gcal_verifier");
-      window.history.replaceState({}, "", window.location.pathname);
-      return true;
-    }
-  } catch(e){ console.error("gcal token exchange failed:", e); }
-  return false;
-};
-
-const gcalRefreshToken = async () => {
-  try {
-    const t = JSON.parse(localStorage.getItem("ts_gcal_token")||"null");
-    if(!t?.refresh_token) return null;
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method:"POST",
-      headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body: new URLSearchParams({
-        client_id: GCAL_CLIENT_ID,
-        grant_type: "refresh_token",
-        refresh_token: t.refresh_token,
-      })
-    });
-    const d = await res.json();
-    if(d.access_token){
-      localStorage.setItem("ts_gcal_token", JSON.stringify({
-        ...t,
-        access_token: d.access_token,
-        expires_at: Date.now() + (d.expires_in||3600)*1000
-      }));
-      return d.access_token;
-    }
-  } catch(e){ console.error("gcal refresh failed:", e); }
-  return null;
-};
-
-const gcalGetValidToken = async () => {
-  const t = JSON.parse(localStorage.getItem("ts_gcal_token")||"null");
-  if(!t) return null;
-  if(Date.now() > t.expires_at - 5*60*1000){
-    return await gcalRefreshToken();
-  }
-  return t.access_token;
-};
-
-const gcalFetchEvents = async (token, days=30) => {
-  const now = new Date();
-  const end = new Date(now); end.setDate(end.getDate()+days);
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now.toISOString()}&timeMax=${end.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=50`,
-    {headers: {"Authorization": `Bearer ${token}`}}
-  );
-  if(!res.ok) { localStorage.removeItem("ts_gcal_token"); return null; }
-  const d = await res.json();
-  return d.items||[];
-};
-
-const gcalCreateEvent = async (token, event) => {
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {method:"POST", headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json"}, body:JSON.stringify(event)}
-  );
-  return res.ok;
-};
-
-const gcalDeleteEvent = async (token, eventId) => {
-  await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
-    {method:"DELETE", headers:{"Authorization":`Bearer ${token}`}}
-  );
-};
-
-const CalendarView = () => {
-  const [token, setToken] = useState(()=>gcalGetToken());
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({title:"",date:todayStr(),time:"09:00",duration:60,note:""});
-  const [selectedDay, setSelectedDay] = useState(todayStr);
-  const [viewDate, setViewDate] = useState(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};});
-  const [calView, setCalView] = useState("month"); // "month" | "week"
-
-  useEffect(()=>{
-    (async()=>{
-      try {
-        const handled = await gcalHandleCallback();
-        if(handled){
-          const tk = await gcalGetValidToken();
-          setToken(tk);
-        }
-      } catch(e){ console.error("gcal init:", e); }
-    })();
-  },[]);
-
-  useEffect(()=>{
-    if(!token) return;
-    (async()=>{
-      setLoading(true);
-      const evs = await gcalFetchEvents(token, 60);
-      if(evs) setEvents(evs);
-      else {
-        // Token might be expired, try refresh
-        const newTk = await gcalRefreshToken();
-        if(newTk){ setToken(newTk); }
-        else { setToken(null); }
-      }
-      setLoading(false);
-    })();
-  },[token]);
-
-  const createEvent = async () => {
-    const tk = await gcalGetValidToken();
-    if(!tk||!form.title.trim()) return;
-    if(tk!==token) setToken(tk);
-    const start = new Date(`${form.date}T${form.time}:00`);
-    const end = new Date(start.getTime()+form.duration*60000);
-    const ok = await gcalCreateEvent(tk, {
-      summary: form.title,
-      description: form.note,
-      start: {dateTime: start.toISOString(), timeZone: "Europe/Rome"},
-      end: {dateTime: end.toISOString(), timeZone: "Europe/Rome"},
-    });
-    if(ok){
-      const evs = await gcalFetchEvents(tk, 60);
-      if(evs) setEvents(evs);
-      setModal(false);
-      setForm({title:"",date:todayStr(),time:"09:00",duration:60,note:""});
-    }
-  };
-
-  const deleteEvent = async (id) => {
-    const tk = await gcalGetValidToken();
-    if(!tk) return;
-    await gcalDeleteEvent(tk, id);
-    setEvents(prev=>prev.filter(e=>e.id!==id));
-  };
-
-  // Week view helpers
-  const getWeekDays = (anchor) => {
-    const d = new Date(anchor+"T00:00:00");
-    const day = (d.getDay()+6)%7; // Monday=0
-    const monday = new Date(d); monday.setDate(d.getDate()-day);
-    return Array.from({length:7},(_,i)=>{ const x=new Date(monday); x.setDate(monday.getDate()+i); return x.toISOString().slice(0,10); });
-  };
-  const [weekAnchor, setWeekAnchor] = useState(todayK);
-  const weekDays = getWeekDays(weekAnchor);
-  const prevWeek = () => { const d=new Date(weekAnchor+"T00:00:00"); d.setDate(d.getDate()-7); setWeekAnchor(d.toISOString().slice(0,10)); };
-  const nextWeek = () => { const d=new Date(weekAnchor+"T00:00:00"); d.setDate(d.getDate()+7); setWeekAnchor(d.toISOString().slice(0,10)); };
-  const weekLabel = `${new Date(weekDays[0]+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"})} – ${new Date(weekDays[6]+"T00:00:00").toLocaleDateString("it-IT",{day:"numeric",month:"short",year:"numeric"})}`;
-
-  // Calendar grid
-  const firstDay = new Date(viewDate.y, viewDate.m, 1);
-  const startWeekday = (firstDay.getDay()+6)%7;
-  const daysInMonth = new Date(viewDate.y, viewDate.m+1, 0).getDate();
-  const monthName = firstDay.toLocaleDateString("it-IT",{month:"long",year:"numeric"});
-  const todayK = todayStr();
-
-  const cells = [];
-  for(let i=0;i<startWeekday;i++) cells.push(null);
-  for(let d=1;d<=daysInMonth;d++){
-    const k=`${viewDate.y}-${String(viewDate.m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    cells.push(k);
-  }
-
-  const getEventsForDay = (k) => events.filter(e=>{
-    const start = e.start?.dateTime||e.start?.date||"";
-    return start.startsWith(k);
-  });
-
-  const selectedEvents = getEventsForDay(selectedDay);
-  const selLabel = new Date(selectedDay+"T00:00:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long"});
-
-  if(!token) return (
-    <div className="fi">
-      <Section title="📅 Calendario">
-        <Card style={{textAlign:"center",padding:"32px 20px"}}>
-          <div style={{fontSize:48,marginBottom:16}}>📅</div>
-          <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:18,color:C.text,marginBottom:8}}>Connetti Google Calendar</div>
-          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,color:C.textDim,marginBottom:24}}>Accedi con il tuo account Google per vedere e gestire i tuoi eventi</div>
-          <Btn onClick={()=>gcalLogin()} style={{justifyContent:"center",margin:"0 auto"}}>[ Connetti con Google ]</Btn>
-        </Card>
-      </Section>
-    </div>
-  );
-
-  return (
-    <div className="fi">
-      <Section title="📅 Calendario" action={
-        <Row gap={8}>
-          {loading && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim}}>⟳</div>}
-          <Btn size="sm" onClick={()=>setModal(true)}>+ Evento</Btn>
-          <Btn size="sm" variant="ghost" onClick={()=>{localStorage.removeItem("ts_gcal_token");setToken(null);setEvents([]);}}>Scollega</Btn>
-        </Row>
-      }>
-        {/* View toggle */}
-        <Row gap={6} style={{marginBottom:12}}>
-          {[["month","Mese"],["week","Settimana"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setCalView(v)} style={{flex:1,background:calView===v?C.accentDim:"transparent",border:`1px solid ${calView===v?C.accent:C.border}`,borderRadius:5,color:calView===v?C.accent:C.textDim,cursor:"pointer",padding:"7px",fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:14,letterSpacing:"0.08em",textTransform:"uppercase"}}>{l}</button>
-          ))}
-        </Row>
-
-        {/* Month nav */}
-        <Card style={{marginBottom:14}}>
-          {calView==="month" && <>
-          <Row style={{justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <button onClick={()=>setViewDate(v=>v.m===0?{y:v.y-1,m:11}:{y:v.y,m:v.m-1})} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,cursor:"pointer",padding:"4px 12px",fontSize:16}}>‹</button>
-            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:15,color:C.accent,fontWeight:700,textTransform:"uppercase"}}>{monthName}</div>
-            <button onClick={()=>setViewDate(v=>v.m===11?{y:v.y+1,m:0}:{y:v.y,m:v.m+1})} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,cursor:"pointer",padding:"4px 12px",fontSize:16}}>›</button>
-          </Row>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-            {["L","M","M","G","V","S","D"].map((d,i)=>(
-              <div key={i} style={{textAlign:"center",fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted,padding:"2px 0"}}>{d}</div>
-            ))}
-            {cells.map((k,i)=>{
-              if(!k) return <div key={i}/>;
-              const day=parseInt(k.slice(-2));
-              const isToday=k===todayK;
-              const isSel=k===selectedDay;
-              const dayEvs=getEventsForDay(k);
-              return (
-                <button key={i} onClick={()=>setSelectedDay(k)}
-                  style={{aspectRatio:"1",background:isSel?C.accentDim:C.bg,border:`1px solid ${isSel?C.accent:isToday?C.gold:C.border}`,borderRadius:6,color:isSel?C.accent:isToday?C.gold:C.text,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:2,transition:"all .15s",position:"relative"}}>
-                  <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:isToday?700:400}}>{day}</span>
-                  {dayEvs.length>0 && <div style={{width:5,height:5,borderRadius:"50%",background:isSel?C.accent:C.success,marginTop:1}}/>}
-                </button>
-              );
-            })}
-          </div>
-          </>}
-
-          {calView==="week" && <>
-            <Row style={{justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <button onClick={prevWeek} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,cursor:"pointer",padding:"4px 12px",fontSize:16}}>‹</button>
-              <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,color:C.accent,fontWeight:700,textTransform:"uppercase"}}>{weekLabel}</div>
-              <button onClick={nextWeek} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,color:C.text,cursor:"pointer",padding:"4px 12px",fontSize:16}}>›</button>
-            </Row>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-              {["L","M","M","G","V","S","D"].map((d,i)=>(
-                <div key={i} style={{textAlign:"center",fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted,paddingBottom:4}}>{d}</div>
-              ))}
-              {weekDays.map(k=>{
-                const day=parseInt(k.slice(-2));
-                const isToday=k===todayK;
-                const isSel=k===selectedDay;
-                const dayEvs=getEventsForDay(k);
-                return (
-                  <button key={k} onClick={()=>setSelectedDay(k)}
-                    style={{background:isSel?C.accentDim:C.bg,border:`1px solid ${isSel?C.accent:isToday?C.gold:C.border}`,borderRadius:6,color:isSel?C.accent:isToday?C.gold:C.text,cursor:"pointer",padding:"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all .15s",minHeight:52}}>
-                    <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,fontWeight:isToday?700:400}}>{day}</span>
-                    {dayEvs.slice(0,2).map((e,i)=>(
-                      <div key={i} style={{width:"90%",background:C.success+"33",borderRadius:2,padding:"1px 3px",fontFamily:"'Rajdhani',sans-serif",fontSize:9,color:C.success,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.summary}</div>
-                    ))}
-                    {dayEvs.length>2 && <div style={{fontSize:9,color:C.textMuted}}>+{dayEvs.length-2}</div>}
-                  </button>
-                );
-              })}
-            </div>
-          </>}
-        </Card>
-
-        {/* Selected day events */}
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.gold,textTransform:"capitalize",marginBottom:10}}>{selLabel}{selectedDay===todayK?" · oggi":""}</div>
-
-        {selectedEvents.length===0 && (
-          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,color:C.textMuted,padding:"12px 0",textAlign:"center"}}>// Nessun evento questo giorno</div>
-        )}
-
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          {selectedEvents.map(e=>{
-            const start = e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}) : "tutto il giorno";
-            const end = e.end?.dateTime ? new Date(e.end.dateTime).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}) : "";
-            return (
-              <Card key={e.id} style={{borderColor:C.success+"44"}}>
-                <Row style={{justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:16,color:C.text}}>{e.summary}</div>
-                    <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.success,marginTop:3}}>{start}{end?` → ${end}`:""}</div>
-                    {e.description && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textDim,marginTop:4}}>{e.description}</div>}
-                  </div>
-                  <button onClick={()=>deleteEvent(e.id)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:15,flexShrink:0}}>×</button>
-                </Row>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Upcoming events */}
-        {events.length>0 && (
-          <>
-            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:12,color:C.textDim,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:8}}>Prossimi eventi</div>
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {events.slice(0,8).map(e=>{
-                const start = e.start?.dateTime||e.start?.date||"";
-                const dateStr = start ? new Date(start).toLocaleDateString("it-IT",{day:"numeric",month:"short"}) : "";
-                const timeStr = e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}) : "";
-                return (
-                  <Row key={e.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 12px",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>{setSelectedDay(start.slice(0,10));setViewDate({y:new Date(start).getFullYear(),m:new Date(start).getMonth()});}}>
-                    <div>
-                      <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:14,color:C.text,fontWeight:600}}>{e.summary}</div>
-                      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textDim}}>{dateStr} {timeStr}</div>
-                    </div>
-                  </Row>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </Section>
-
-      {modal && (
-        <Modal title="Nuovo Evento" onClose={()=>setModal(false)}>
-          <Label>Titolo</Label>
-          <Input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Es. Call con cliente..."/>
-          <Grid cols={2} gap={8}>
-            <div><Label>Data</Label><Input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
-            <div><Label>Ora</Label><Input type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></div>
-          </Grid>
-          <Label>Durata (minuti)</Label>
-          <Select value={form.duration} onChange={e=>setForm({...form,duration:parseInt(e.target.value)})}>
-            {[15,30,45,60,90,120,180,240].map(d=><option key={d} value={d}>{d} min</option>)}
-          </Select>
-          <Label>Note (opz.)</Label>
-          <Input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Descrizione evento..."/>
-          <Row gap={8}>
-            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setModal(false)}>Annulla</Btn>
-            <Btn style={{flex:2,justifyContent:"center"}} onClick={createEvent}>[ CREA EVENTO ]</Btn>
-          </Row>
-        </Modal>
-      )}
     </div>
   );
 };
@@ -3608,44 +3124,6 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [recoveryToken, setRecoveryToken] = useState(null);
-  const [recoveryPw, setRecoveryPw] = useState("");
-  const [recoveryMsg, setRecoveryMsg] = useState(null);
-
-  // Handle password recovery link (token in URL hash or query)
-  useEffect(()=>{
-    const hash = window.location.hash;
-    const search = window.location.search;
-    // Case 1: #access_token=...&type=recovery
-    if(hash && hash.includes("access_token") && hash.includes("type=recovery")){
-      const params = new URLSearchParams(hash.slice(1));
-      const token = params.get("access_token");
-      if(token){ setRecoveryToken(token); window.history.replaceState({}, "", window.location.pathname); }
-    }
-    // Case 2: Supabase redirects with access_token in hash after verifying
-    else if(hash && hash.includes("access_token")){
-      const params = new URLSearchParams(hash.slice(1));
-      const token = params.get("access_token");
-      const type = params.get("type");
-      if(token && type==="recovery"){ setRecoveryToken(token); window.history.replaceState({}, "", window.location.pathname); }
-    }
-  },[]);
-
-  const submitRecovery = async () => {
-    setRecoveryMsg(null);
-    if(recoveryPw.length < 6){ setRecoveryMsg({type:"err",text:"Almeno 6 caratteri"}); return; }
-    const sb = getSB();
-    try {
-      const res = await fetch(`${sb.url}/auth/v1/user`, {
-        method:"PUT",
-        headers:{"apikey":sb.key,"Content-Type":"application/json","Authorization":`Bearer ${recoveryToken}`},
-        body:JSON.stringify({password:recoveryPw})
-      });
-      const d = await res.json();
-      if(d.id){ setRecoveryMsg({type:"ok",text:"Password cambiata! Ora accedi."}); setTimeout(()=>setRecoveryToken(null),2000); }
-      else setRecoveryMsg({type:"err",text:d.msg||d.error_description||"Errore"});
-    } catch(e){ setRecoveryMsg({type:"err",text:e.message}); }
-  };
 
   const handleLogin = async () => {
     setLoginLoading(true); setLoginError("");
@@ -3858,7 +3336,7 @@ Tono diretto, da coach.`;
     {id:"goals",label:"Goals"},
     {id:"clients",label:"Clienti"},
     {id:"finance",label:"Finanze"},
-    {id:"calendar",label:"Calendario"},
+    {id:"leads",label:"Pipeline"},
     {id:"settings",label:"Setup"},
   ];
 
@@ -3875,30 +3353,8 @@ Tono diretto, da coach.`;
     clients:"M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
     finance:"M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
     leads:"M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    calendar:"M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
     settings:"M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
   };
-
-  if(recoveryToken) {
-    return (
-      <div style={{minHeight:"100dvh",background:"#03030a",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <GS/>
-        <div style={{width:"100%",maxWidth:380}}>
-          <div style={{textAlign:"center",marginBottom:32}}>
-            <div style={{fontFamily:"'Cinzel',serif",fontSize:24,fontWeight:900,color:"#4fc3f7",letterSpacing:"0.2em"}} className="rp">RECUPERO PASSWORD</div>
-          </div>
-          <div style={{background:"#07071a",border:"1px solid #1a1a3a",borderRadius:10,padding:28}}>
-            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:11,color:"#384560",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:6}}>Nuova password</div>
-            <input type="password" value={recoveryPw} onChange={e=>setRecoveryPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitRecovery()} placeholder="Almeno 6 caratteri" style={{width:"100%",background:"#03030a",border:"1px solid #1a1a3a",borderRadius:6,color:"#ccd6f0",padding:"11px 13px",fontSize:14,fontFamily:"'Share Tech Mono',monospace",outline:"none",boxSizing:"border-box",marginBottom:16}}/>
-            {recoveryMsg && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:recoveryMsg.type==="ok"?"#4caf50":"#f44336",marginBottom:14}}>{recoveryMsg.text}</div>}
-            <button onClick={submitRecovery} style={{width:"100%",background:"#0a0a2a",border:"1px solid #4fc3f7",borderRadius:6,color:"#4fc3f7",padding:"13px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:14,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>
-              [ IMPOSTA PASSWORD ]
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if(!session && getSB()) {
     return (
@@ -3989,7 +3445,7 @@ Tono diretto, da coach.`;
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
-            {tab==="calendar" && <div style={{padding:20,fontFamily:"'Share Tech Mono',monospace",color:"#4fc3f7",textAlign:"center",marginTop:40}}>📅 Calendario in manutenzione</div>}
+            {tab==="leads" && <LeadsView leads={leads} setLeads={setLeads} apiKeys={apiKeys} onNeedKey={openKeys}/>}
             {tab==="settings" && <SettingsView quests={quests} setQuests={setQuests} clients={clients} leads={leads} tasks={tasks} ideas={ideas} goals={goals} notes={notes} payments={payments} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} weightLog={weightLog} habits={habits} habitLog={habitLog} slotDays={slotDays} slotStart={slotStart} apiKeys={apiKeys} keyDraft={keyDraft} setKeyDraft={setKeyDraft} saveKeys={saveKeys} onSyncNow={()=>DB.pushAll(stateRef.current)}/>}
           </>
         )}
