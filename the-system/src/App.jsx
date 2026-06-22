@@ -3170,8 +3170,8 @@ export default function App() {
   const saveKeys = () => {
     const keys = {apify:keyDraft.apify, anthropic:keyDraft.anthropic};
     setApiKeys(keys);
-    if(keyDraft.sbUrl) LS.set("ts_sb_url", keyDraft.sbUrl);
-    if(keyDraft.sbKey) LS.set("ts_sb_key", keyDraft.sbKey);
+    if(keyDraft.sbUrl) localStorage.setItem("ts_sb_url", keyDraft.sbUrl);
+    if(keyDraft.sbKey) localStorage.setItem("ts_sb_key", keyDraft.sbKey);
     setSbConnected(!!getSB());
     // Save to Supabase so it syncs across devices
     DB.setSetting("api_keys", keys);
