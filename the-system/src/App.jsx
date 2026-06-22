@@ -2104,6 +2104,24 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
             style={{minHeight:80,marginBottom:0,borderColor:C.gold+"44"}}/>
         </Card>
 
+        <Card style={{marginBottom:12,borderColor:"#4fc3f744",background:"#4fc3f706"}}>
+          <Label style={{color:"#4fc3f7"}}>🌱 Kaizen — Piccole domande, grandi cambiamenti</Label>
+          <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:8}}>
+            {[
+              {area:"💼 Lavoro",q:"Qual è la cosa più piccola che posso fare oggi per far avanzare un progetto?",k:"kaizen_lavoro"},
+              {area:"💪 Salute",q:"Cosa posso fare oggi, anche di minimo, per trattare meglio il mio corpo?",k:"kaizen_salute"},
+              {area:"🧠 Mindset",q:"Qual è un pensiero limitante che posso sfidare oggi con un'azione piccola?",k:"kaizen_mindset"},
+              {area:"❤️ Relazioni",q:"Chi potrei contattare o ringraziare oggi, anche con un solo messaggio?",k:"kaizen_relazioni"},
+            ].map(({area,q,k})=>(
+              <div key={k}>
+                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,color:"#4fc3f7",marginBottom:2}}>{area}</div>
+                <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{q}</div>
+                <Textarea value={mood[k]||""} onChange={e=>updMood({[k]:e.target.value})} placeholder="Scrivi qui la tua risposta..." style={{minHeight:60,marginBottom:0,fontSize:13}}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         <Card style={{marginBottom:12}}>
           <Label>Umore</Label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
@@ -3336,7 +3354,7 @@ Tono diretto, da coach.`;
     {id:"goals",label:"Goals"},
     {id:"clients",label:"Clienti"},
     {id:"finance",label:"Finanze"},
-    {id:"leads",label:"Pipeline"},
+    
     {id:"settings",label:"Setup"},
   ];
 
@@ -3445,7 +3463,7 @@ Tono diretto, da coach.`;
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
-            {tab==="leads" && <LeadsView leads={leads} setLeads={setLeads} apiKeys={apiKeys} onNeedKey={openKeys}/>}
+            
             {tab==="settings" && <SettingsView quests={quests} setQuests={setQuests} clients={clients} leads={leads} tasks={tasks} ideas={ideas} goals={goals} notes={notes} payments={payments} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} weightLog={weightLog} habits={habits} habitLog={habitLog} slotDays={slotDays} slotStart={slotStart} apiKeys={apiKeys} keyDraft={keyDraft} setKeyDraft={setKeyDraft} saveKeys={saveKeys} onSyncNow={()=>DB.pushAll(stateRef.current)}/>}
           </>
         )}
