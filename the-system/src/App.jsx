@@ -2740,9 +2740,14 @@ const ProjectsView = ({projects, setProjects}) => {
   };
 
   const importTasks = (pid) => {
-    const lines = importText.split("\n").map(l=>l.trim()).filter(Boolean);
-    if(!lines.length) return;
-    const newTasks = lines.map(text=>({id:uid(),text,done:false}));
+    // Split on newlines AND on "* " bullet points
+    const raw = importText
+      .split(/\n|\*\s+/)
+      .map(l=>l.trim())
+      .map(l=>l.replace(/\[.*?\]\(.*?\)/g, '').trim()) // remove markdown links
+      .filter(l=>l && !/^(FASE\s+\d+|GESTIONALE|ROADMAP|#)/i.test(l)); // skip titles
+    if(!raw.length) return;
+    const newTasks = raw.map(text=>({id:uid(),text,done:false}));
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
     setImportModal(null);
     setImportText("");
