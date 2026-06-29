@@ -2721,6 +2721,7 @@ const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
   const [newTask, setNewTask] = useState({});
   const [importModal, setImportModal] = useState(null);
   const [importText, setImportText] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
 
   const COLORS = ["#4fc3f7","#dfff00","#4caf50","#f44336","#ff9800","#ce93d8","#80cbc4","#fff"];
 
@@ -2738,8 +2739,6 @@ const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),{id:uid(),text:txt,done:false}]}:p));
     setNewTask(prev=>({...prev,[pid]:""}));
   };
-
-  const [importLoading, setImportLoading] = useState(false);
 
   const importTasks = async (pid) => {
     if(!importText.trim()) return;
