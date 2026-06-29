@@ -2887,7 +2887,7 @@ const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
 };
 
 
-const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthropicKey,onNeedKey,clients=[]}) => {
+const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthropicKey,onNeedKey,clients=[],apiKeys={}}) => {
   const [subtab, setSubtab] = useState("tasks");
   return (
     <div className="fi">
@@ -3500,7 +3500,7 @@ Tono diretto, da coach.`;
           <>
             {tab==="dashboard" && <Dashboard clients={clients} leads={leads} quests={quests} tasks={tasks} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} goals={goals} payments={payments} onWeeklyReview={generateWeeklyReport} anthropicKey={apiKeys.anthropic} smokeLog={smokeLog} setSmokeLog={setSmokeLog}/>}
             {tab==="quests" && <QuestsView quests={quests} setQuests={setQuests} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
-            {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients}/>}
+            {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients} apiKeys={apiKeys}/>}
             {tab==="agent" && <AgentView clients={clients} leads={leads} quests={quests} tasks={tasks} ideas={ideas} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="brainstorm" && <BrainstormView ideas={ideas} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="salute" && <SaluteView workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} dietLog={dietLog} setDietLog={setDietLog} weightLog={weightLog} setWeightLog={setWeightLog}/>}
