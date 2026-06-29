@@ -2713,7 +2713,7 @@ const HabitsView = ({habits, setHabits, habitLog, setHabitLog}) => {
 
 // ─── TASK + NOTE (merged) ─────────────────────────────────────────────────────
 // ─── PROJECTS VIEW ───────────────────────────────────────────────────────────
-const ProjectsView = ({projects, setProjects}) => {
+const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
   const [modal, setModal] = useState(false);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#4fc3f7");
@@ -2739,17 +2739,40 @@ const ProjectsView = ({projects, setProjects}) => {
     setNewTask(prev=>({...prev,[pid]:""}));
   };
 
-  const importTasks = (pid) => {
+  const [importLoading, setImportLoading] = useState(false);
+
+  const importTasks = async (pid) => {
+    if(!importText.trim()) return;
+    // Try to get anthropic key
+    const anthropicKey = apiKeys?.anthropic;
+    if(anthropicKey) {
+      setImportLoading(true);
+      try {
+        const res = await fetch("https://apify-worker.luciettiandrea.workers.dev/anthropic/v1/messages",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":anthropicKey},
+          body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:2000,messages:[{role:"user",content:`Estrai tutte le task da questo testo e restituisci SOLO un JSON array di stringhe, una per task. Rimuovi asterischi, link markdown, e mantieni il prefisso "Fase X -" se presente. Nient'altro oltre al JSON.\n\nTesto:\n${importText}`}]})
+        });
+        const d = await res.json();
+        const text = d.content?.[0]?.text||"[]";
+        const clean = text.replace(/```json|```/g,"").trim();
+        const tasks = JSON.parse(clean);
+        if(Array.isArray(tasks) && tasks.length) {
+          const newTasks = tasks.map(t=>({id:uid(),text:String(t).trim(),done:false}));
+          saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
+          setImportModal(null); setImportText(""); setImportLoading(false); return;
+        }
+      } catch(e){ console.error(e); }
+      setImportLoading(false);
+    }
+    // Fallback senza AI
     const raw = importText
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // remove markdown links, keep text
-      .split(/\n|(?=Fase\s+\d+\s*[-—])|\*\s+/) // split on newlines, "Fase X -" or "* "
-      .map(l=>l.trim())
-      .filter(l=>l.length > 3);
-    if(!raw.length) return;
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .split(/\n|(?=Fase\s+\d+\s*[-—])|\*\s+/)
+      .map(l=>l.trim()).filter(l=>l.length > 3);
     const newTasks = raw.map(text=>({id:uid(),text,done:false}));
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
-    setImportModal(null);
-    setImportText("");
+    setImportModal(null); setImportText("");
   };
 
   const toggleTask = (pid, tid) => {
@@ -2859,7 +2882,7 @@ const ProjectsView = ({projects, setProjects}) => {
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.accent,marginBottom:12}}>{importText.split("\n").filter(l=>l.trim()).length} task da importare</div>
           <Row gap={8}>
             <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setImportModal(null)}>Annulla</Btn>
-            <Btn style={{flex:2,justifyContent:"center"}} onClick={()=>importTasks(importModal)}>[ IMPORTA ]</Btn>
+            <Btn style={{flex:2,justifyContent:"center"}} onClick={()=>importTasks(importModal)} disabled={importLoading}>{importLoading?"[ AI sta elaborando... ]":"[ IMPORTA ]"}</Btn>
           </Row>
         </Modal>
       )}
@@ -2880,7 +2903,7 @@ const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthr
         ))}
       </div>
       {subtab==="tasks" && <TasksView tasks={tasks} setTasks={setTasks} anthropicKey={anthropicKey} onNeedKey={onNeedKey} clients={clients}/>}
-      {subtab==="projects" && <ProjectsView projects={projects||[]} setProjects={setProjects}/>}
+      {subtab==="projects" && <ProjectsView projects={projects||[]} setProjects={setProjects} apiKeys={apiKeys}/>}
       {subtab==="notes" && <NotesView notes={notes} setNotes={setNotes}/>}
     </div>
   );
