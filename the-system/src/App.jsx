@@ -2719,6 +2719,8 @@ const ProjectsView = ({projects, setProjects}) => {
   const [color, setColor] = useState("#4fc3f7");
   const [expanded, setExpanded] = useState(null);
   const [newTask, setNewTask] = useState({});
+  const [importModal, setImportModal] = useState(null);
+  const [importText, setImportText] = useState("");
 
   const COLORS = ["#4fc3f7","#dfff00","#4caf50","#f44336","#ff9800","#ce93d8","#80cbc4","#fff"];
 
@@ -2735,6 +2737,15 @@ const ProjectsView = ({projects, setProjects}) => {
     if(!txt) return;
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),{id:uid(),text:txt,done:false}]}:p));
     setNewTask(prev=>({...prev,[pid]:""}));
+  };
+
+  const importTasks = (pid) => {
+    const lines = importText.split("\n").map(l=>l.trim()).filter(Boolean);
+    if(!lines.length) return;
+    const newTasks = lines.map(text=>({id:uid(),text,done:false}));
+    saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
+    setImportModal(null);
+    setImportText("");
   };
 
   const toggleTask = (pid, tid) => {
@@ -2810,6 +2821,7 @@ const ProjectsView = ({projects, setProjects}) => {
                   <Row gap={8} style={{marginTop:10}}>
                     <Input value={newTask[p.id]||""} onChange={e=>setNewTask(prev=>({...prev,[p.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask(p.id)} placeholder="Nuova task..." style={{marginBottom:0,flex:1,fontSize:13}}/>
                     <Btn size="sm" onClick={()=>addTask(p.id)} style={{flexShrink:0}}>+</Btn>
+                    <Btn size="sm" variant="ghost" onClick={()=>{setImportModal(p.id);setImportText("");}} style={{flexShrink:0}}>Import</Btn>
                   </Row>
                 </div>
               )}
@@ -2833,6 +2845,17 @@ const ProjectsView = ({projects, setProjects}) => {
           <Row gap={8}>
             <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setModal(false)}>Annulla</Btn>
             <Btn style={{flex:2,justifyContent:"center"}} onClick={addProject}>[ CREA ]</Btn>
+          </Row>
+        </Modal>
+      )}
+      {importModal && (
+        <Modal title="Import Task" onClose={()=>setImportModal(null)}>
+          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:10}}>Una task per riga — incolla anche 50 task in un colpo</div>
+          <Textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder={"Sistemare header\nCreare pagina contatti\nOttimizzare SEO\n..."} style={{minHeight:200,marginBottom:8,fontSize:13}} autoFocus/>
+          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.accent,marginBottom:12}}>{importText.split("\n").filter(l=>l.trim()).length} task da importare</div>
+          <Row gap={8}>
+            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setImportModal(null)}>Annulla</Btn>
+            <Btn style={{flex:2,justifyContent:"center"}} onClick={()=>importTasks(importModal)}>[ IMPORTA ]</Btn>
           </Row>
         </Modal>
       )}
