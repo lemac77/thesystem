@@ -2104,6 +2104,24 @@ const DiaryView = ({moodLog, setMoodLog, dietLog, setDietLog, smokeLog, setSmoke
             style={{minHeight:80,marginBottom:0,borderColor:C.gold+"44"}}/>
         </Card>
 
+        <Card style={{marginBottom:12,borderColor:"#4fc3f744",background:"#4fc3f706"}}>
+          <Label style={{color:"#4fc3f7"}}>🌱 Kaizen — Piccole domande, grandi cambiamenti</Label>
+          <div style={{display:"flex",flexDirection:"column",gap:14,marginTop:8}}>
+            {[
+              {area:"💼 Lavoro",q:"Qual è la cosa più piccola che posso fare oggi per far avanzare un progetto?",k:"kaizen_lavoro"},
+              {area:"💪 Salute",q:"Cosa posso fare oggi, anche di minimo, per trattare meglio il mio corpo?",k:"kaizen_salute"},
+              {area:"🧠 Mindset",q:"Qual è un pensiero limitante che posso sfidare oggi con un'azione piccola?",k:"kaizen_mindset"},
+              {area:"❤️ Relazioni",q:"Chi potrei contattare o ringraziare oggi, anche con un solo messaggio?",k:"kaizen_relazioni"},
+            ].map(({area,q,k})=>(
+              <div key={k}>
+                <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,fontWeight:700,color:"#4fc3f7",marginBottom:2}}>{area}</div>
+                <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:6,fontStyle:"italic"}}>{q}</div>
+                <Textarea value={mood[k]||""} onChange={e=>updMood({[k]:e.target.value})} placeholder="Scrivi qui la tua risposta..." style={{minHeight:60,marginBottom:0,fontSize:13}}/>
+              </div>
+            ))}
+          </div>
+        </Card>
+
         <Card style={{marginBottom:12}}>
           <Label>Umore</Label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
@@ -2695,12 +2713,15 @@ const HabitsView = ({habits, setHabits, habitLog, setHabitLog}) => {
 
 // ─── TASK + NOTE (merged) ─────────────────────────────────────────────────────
 // ─── PROJECTS VIEW ───────────────────────────────────────────────────────────
-const ProjectsView = ({projects, setProjects}) => {
+const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
   const [modal, setModal] = useState(false);
   const [name, setName] = useState("");
   const [color, setColor] = useState("#4fc3f7");
   const [expanded, setExpanded] = useState(null);
   const [newTask, setNewTask] = useState({});
+  const [importModal, setImportModal] = useState(null);
+  const [importText, setImportText] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
 
   const COLORS = ["#4fc3f7","#dfff00","#4caf50","#f44336","#ff9800","#ce93d8","#80cbc4","#fff"];
 
@@ -2717,6 +2738,39 @@ const ProjectsView = ({projects, setProjects}) => {
     if(!txt) return;
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),{id:uid(),text:txt,done:false}]}:p));
     setNewTask(prev=>({...prev,[pid]:""}));
+  };
+
+  const importTasks = async (pid) => {
+    if(!importText.trim()) return;
+    const anthropicKey = apiKeys?.anthropic;
+    if(anthropicKey) {
+      setImportLoading(true);
+      try {
+        const res = await fetch("https://apify-worker.luciettiandrea.workers.dev/anthropic/v1/messages",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":anthropicKey},
+          body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:2000,messages:[{role:"user",content:`Estrai tutte le singole task da questo testo. Il testo potrebbe essere tutto su una riga o su più righe. Ogni task inizia con "Fase X -" o è separata da asterischi o newline. Restituisci SOLO un JSON array di stringhe, una stringa per task. Rimuovi asterischi e link markdown tipo [testo](url). Mantieni il prefisso "Fase X -" se presente. Nient\'altro oltre al JSON array.\n\nTesto:\n${importText}`}]})
+        });
+        const d = await res.json();
+        const text = d.content?.[0]?.text||"[]";
+        const clean = text.replace(/\`\`\`json|\`\`\`/g,"").trim();
+        const tasks = JSON.parse(clean);
+        if(Array.isArray(tasks) && tasks.length) {
+          const newTasks = tasks.map(t=>({id:uid(),text:String(t).trim(),done:false}));
+          saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
+          setImportModal(null); setImportText(""); setImportLoading(false); return;
+        }
+      } catch(e){ console.error(e); }
+      setImportLoading(false);
+    }
+    // Fallback senza AI
+    const raw = importText
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .split(/\n|(?=Fase\s+\d+\s*[-—])|\*\s+/)
+      .map(l=>l.trim()).filter(l=>l.length > 3);
+    const newTasks = raw.map(text=>({id:uid(),text,done:false}));
+    saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
+    setImportModal(null); setImportText("");
   };
 
   const toggleTask = (pid, tid) => {
@@ -2766,7 +2820,6 @@ const ProjectsView = ({projects, setProjects}) => {
 
               {isOpen && (
                 <div style={{marginTop:4}}>
-                  {/* Manual progress slider */}
                   <div style={{marginBottom:14,padding:"10px 0",borderBottom:`1px solid ${C.border}`}}>
                     <Row style={{justifyContent:"space-between",marginBottom:6}}>
                       <span style={{fontFamily:"'Rajdhani',sans-serif",fontSize:13,color:C.textDim,letterSpacing:"0.08em",textTransform:"uppercase"}}>Avanzamento</span>
@@ -2792,6 +2845,7 @@ const ProjectsView = ({projects, setProjects}) => {
                   <Row gap={8} style={{marginTop:10}}>
                     <Input value={newTask[p.id]||""} onChange={e=>setNewTask(prev=>({...prev,[p.id]:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask(p.id)} placeholder="Nuova task..." style={{marginBottom:0,flex:1,fontSize:13}}/>
                     <Btn size="sm" onClick={()=>addTask(p.id)} style={{flexShrink:0}}>+</Btn>
+                    <Btn size="sm" variant="ghost" onClick={()=>{setImportModal(p.id);setImportText("");}} style={{flexShrink:0}}>Import</Btn>
                   </Row>
                 </div>
               )}
@@ -2818,12 +2872,22 @@ const ProjectsView = ({projects, setProjects}) => {
           </Row>
         </Modal>
       )}
+      {importModal && (
+        <Modal title="Import Task" onClose={()=>setImportModal(null)}>
+          <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:10}}>Incolla le task — anche tutto su una riga, l'AI le separa automaticamente</div>
+          <Textarea value={importText} onChange={e=>setImportText(e.target.value)} placeholder={"Fase 0 - Task uno Fase 1 - Task due..."} style={{minHeight:200,marginBottom:8,fontSize:13}} autoFocus/>
+          <Row gap={8}>
+            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setImportModal(null)}>Annulla</Btn>
+            <Btn style={{flex:2,justifyContent:"center"}} onClick={()=>importTasks(importModal)} disabled={importLoading}>{importLoading?"[ AI sta elaborando... ]":"[ IMPORTA ]"}</Btn>
+          </Row>
+        </Modal>
+      )}
     </div>
   );
 };
 
 
-const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthropicKey,onNeedKey,clients=[],apiKeys={}}) => {
+const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthropicKey,onNeedKey,clients=[]}) => {
   const [subtab, setSubtab] = useState("tasks");
   return (
     <div className="fi">
@@ -2835,7 +2899,7 @@ const TaskNotesView = ({tasks,setTasks,notes,setNotes,projects,setProjects,anthr
         ))}
       </div>
       {subtab==="tasks" && <TasksView tasks={tasks} setTasks={setTasks} anthropicKey={anthropicKey} onNeedKey={onNeedKey} clients={clients}/>}
-      {subtab==="projects" && <ProjectsView projects={projects||[]} setProjects={setProjects}/>}
+      {subtab==="projects" && <ProjectsView projects={projects||[]} setProjects={setProjects} apiKeys={apiKeys}/>}
       {subtab==="notes" && <NotesView notes={notes} setNotes={setNotes}/>}
     </div>
   );
@@ -3336,7 +3400,7 @@ Tono diretto, da coach.`;
     {id:"goals",label:"Goals"},
     {id:"clients",label:"Clienti"},
     {id:"finance",label:"Finanze"},
-    {id:"leads",label:"Pipeline"},
+    
     {id:"settings",label:"Setup"},
   ];
 
@@ -3436,7 +3500,7 @@ Tono diretto, da coach.`;
           <>
             {tab==="dashboard" && <Dashboard clients={clients} leads={leads} quests={quests} tasks={tasks} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} goals={goals} payments={payments} onWeeklyReview={generateWeeklyReport} anthropicKey={apiKeys.anthropic} smokeLog={smokeLog} setSmokeLog={setSmokeLog}/>}
             {tab==="quests" && <QuestsView quests={quests} setQuests={setQuests} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
-            {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients} apiKeys={apiKeys}/>}
+            {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients}/>}
             {tab==="agent" && <AgentView clients={clients} leads={leads} quests={quests} tasks={tasks} ideas={ideas} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="brainstorm" && <BrainstormView ideas={ideas} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="salute" && <SaluteView workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} dietLog={dietLog} setDietLog={setDietLog} weightLog={weightLog} setWeightLog={setWeightLog}/>}
@@ -3445,7 +3509,7 @@ Tono diretto, da coach.`;
             {tab==="goals" && <GoalsView goals={goals} setGoals={setGoals}/>}
             {tab==="clients" && <ClientsView clients={clients} setClients={setClients}/>}
             {tab==="finance" && <FinanceView clients={clients} payments={payments} setPayments={setPayments}/>}
-            {tab==="leads" && <LeadsView leads={leads} setLeads={setLeads} apiKeys={apiKeys} onNeedKey={openKeys}/>}
+            
             {tab==="settings" && <SettingsView quests={quests} setQuests={setQuests} clients={clients} leads={leads} tasks={tasks} ideas={ideas} goals={goals} notes={notes} payments={payments} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} weightLog={weightLog} habits={habits} habitLog={habitLog} slotDays={slotDays} slotStart={slotStart} apiKeys={apiKeys} keyDraft={keyDraft} setKeyDraft={setKeyDraft} saveKeys={saveKeys} onSyncNow={()=>DB.pushAll(stateRef.current)}/>}
           </>
         )}
