@@ -2740,12 +2740,11 @@ const ProjectsView = ({projects, setProjects}) => {
   };
 
   const importTasks = (pid) => {
-    // Split on newlines AND on "* " bullet points
     const raw = importText
-      .split(/\n|\*\s+/)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // remove markdown links, keep text
+      .split(/\n|(?=Fase\s+\d+\s*[-—])|\*\s+/) // split on newlines, "Fase X -" or "* "
       .map(l=>l.trim())
-      .map(l=>l.replace(/\[.*?\]\(.*?\)/g, '').trim()) // remove markdown links
-      .filter(l=>l && !/^(FASE\s+\d+|GESTIONALE|ROADMAP|#)/i.test(l)); // skip titles
+      .filter(l=>l.length > 3);
     if(!raw.length) return;
     const newTasks = raw.map(text=>({id:uid(),text,done:false}));
     saveProjects(projects.map(p=>p.id===pid?{...p,tasks:[...(p.tasks||[]),...newTasks]}:p));
