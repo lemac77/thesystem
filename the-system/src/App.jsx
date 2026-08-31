@@ -3103,23 +3103,25 @@ const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,pa
       <Section title="🔔 Notifiche">
         <Card style={{marginBottom:10}}>
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:C.textDim,marginBottom:12}}>
-            Attiva le push notification per ricevere reminder su quest, task e check-in anche quando l'app è chiusa. Funziona su PC e mobile.
+            Attiva le push notification per ricevere reminder anche quando l'app è chiusa. Funziona su PC e mobile.
           </div>
           <button onClick={async()=>{
-            if(!window.OneSignal){alert("OneSignal non caricato. Ricarica la pagina.");return;}
             try {
-              const permission = await window.OneSignal.Notifications.requestPermission();
-              if(permission){
-                alert("✓ Notifiche attivate! Riceverai i reminder di The System.");
+              const perm = await Notification.requestPermission();
+              if(perm === "granted") {
+                if(window.OneSignal) {
+                  await window.OneSignal.Notifications.requestPermission();
+                }
+                alert("✓ Notifiche attivate!");
               } else {
-                alert("Notifiche non autorizzate. Abilitale dalle impostazioni del browser.");
+                alert("Notifiche non autorizzate. Vai su chrome://settings/content/notifications e rimuovi lemac77.github.io dalla lista bloccati, poi riprova.");
               }
             } catch(e){ alert("Errore: "+e.message); }
           }} style={{width:"100%",background:`${C.accent}15`,border:`1px solid ${C.accent}`,borderRadius:6,color:C.accent,padding:"12px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontSize:15,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>
             [ 🔔 ATTIVA NOTIFICHE ]
           </button>
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:C.textMuted}}>
-            Se hai già autorizzato, le notifiche sono già attive.
+            Stato: {typeof Notification !== "undefined" ? Notification.permission : "non supportato"}
           </div>
         </Card>
       </Section>
