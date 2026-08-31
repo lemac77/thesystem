@@ -18,10 +18,17 @@
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: "0cf17851-6b75-4374-b5a0-2d1a41200a62",
-          safari_web_id: "web.onesignal.auto.0cf17851-6b75-4374-b5a0-2d1a41200a62",
           notifyButton: { enable: false },
+          promptOptions: {
+            slidedown: {
+              enabled: false,
+            }
+          },
+          serviceWorkerParam: { scope: "/thesystem/" },
+          serviceWorkerPath: "/thesystem/OneSignalSDKWorker.js",
           allowLocalhostAsSecureOrigin: true,
         });
+        window.__OneSignalReady = true;
       });
     </script>
   </head>
