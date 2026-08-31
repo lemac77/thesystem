@@ -12,6 +12,18 @@
     <link rel="apple-touch-icon" href="/the-system/apple-touch-icon.png" />
     <link rel="manifest" href="/thesystem/manifest.json" />
     <title>The System</title>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "0cf17851-6b75-4374-b5a0-2d1a41200a62",
+          safari_web_id: "web.onesignal.auto.0cf17851-6b75-4374-b5a0-2d1a41200a62",
+          notifyButton: { enable: false },
+          allowLocalhostAsSecureOrigin: true,
+        });
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
