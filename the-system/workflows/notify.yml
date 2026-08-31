@@ -1,0 +1,41 @@
+name: Daily Notifications
+
+on:
+  schedule:
+    # 09:00 ora italiana (UTC+2 in estate = 07:00 UTC)
+    - cron: '0 7 * * *'
+    # 23:00 ora italiana (UTC+2 in estate = 21:00 UTC)
+    - cron: '0 21 * * *'
+  workflow_dispatch: # permette di lanciarlo manualmente
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send morning notification
+        if: github.event.schedule == '0 7 * * *'
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Basic ${{ secrets.ONESIGNAL_API_KEY }}" \
+            -d '{
+              "app_id": "0cf17851-6b75-4374-b5a0-2d1a41200a62",
+              "included_segments": ["All"],
+              "headings": {"en": "⚡ The System"},
+              "contents": {"en": "Controlla le tue task di oggi. Nessuna scusa."}
+            }' \
+            https://onesignal.com/api/v1/notifications
+
+      - name: Send evening notification
+        if: github.event.schedule == '0 21 * * *'
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Basic ${{ secrets.ONESIGNAL_API_KEY }}" \
+            -d '{
+              "app_id": "0cf17851-6b75-4374-b5a0-2d1a41200a62",
+              "included_segments": ["All"],
+              "headings": {"en": "📓 The System"},
+              "contents": {"en": "Compila il resoconto della giornata nel Diario."}
+            }' \
+            https://onesignal.com/api/v1/notifications
