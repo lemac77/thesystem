@@ -2267,7 +2267,7 @@ const SlotView = ({slotDays, slotStart, onReset}) => {
 };
 
 // ─── BRAINSTORM ───────────────────────────────────────────────────────────────
-const BrainstormView = ({ideas, setIdeas, anthropicKey, onNeedKey}) => {
+const BrainstormView = ({ideas=[], setIdeas, anthropicKey, onNeedKey}) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [taskClientId, setTaskClientId] = useState("");
@@ -3524,7 +3524,7 @@ Tono diretto, da coach.`;
             {tab==="quests" && <QuestsView quests={quests} setQuests={setQuests} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients} apiKeys={apiKeys}/>}
             {tab==="agent" && <AgentView clients={clients} leads={leads} quests={quests} tasks={tasks} ideas={ideas} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
-            {tab==="brainstorm" && <BrainstormView ideas={ideas} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
+            {tab==="brainstorm" && <BrainstormView ideas={ideas||[]} setIdeas={setIdeas} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="salute" && <SaluteView workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} dietLog={dietLog} setDietLog={setDietLog} weightLog={weightLog} setWeightLog={setWeightLog}/>}
             {tab==="checkin" && <CheckinView moodLog={moodLog} setMoodLog={setMoodLog} habits={habits} setHabits={setHabits} habitLog={habitLog} setHabitLog={setHabitLog} slotDays={slotDays} slotStart={slotStart} setSlotDays={setSlotDays} setSlotStart={setSlotStart} smokeLog={smokeLog} setSmokeLog={setSmokeLog} focusLog={focusLog} setFocusLog={setFocusLog}/>}
             {tab==="diary" && <DiaryView moodLog={moodLog} setMoodLog={setMoodLog} dietLog={dietLog} setDietLog={setDietLog} smokeLog={smokeLog} setSmokeLog={setSmokeLog} workoutLog={workoutLog} setWorkoutLog={setWorkoutLog} focusLog={focusLog} setFocusLog={setFocusLog} anthropicKey={apiKeys.anthropic}/>}
