@@ -3,7 +3,7 @@ name: Daily Notifications
 on:
   schedule:
     - cron: '0 7 * * *'
-    - cron: '0 21 * * *'
+    - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
       type:
@@ -30,7 +30,7 @@ jobs:
             https://onesignal.com/api/v1/notifications
 
       - name: Send evening notification
-        if: github.event.schedule == '0 21 * * *' || github.event.inputs.type == 'evening'
+        if: github.event.schedule == '0 18 * * *' || github.event.inputs.type == 'evening'
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
