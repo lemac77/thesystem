@@ -2328,7 +2328,7 @@ const BrainstormView = ({ideas=[], setIdeas, anthropicKey, onNeedKey}) => {
                 </div>
               )}
               <Row gap={5} style={{flexWrap:"wrap",alignItems:"center"}}>
-                {idea.tags.map(t=><Chip key={t} color={C.textMuted}>#{t}</Chip>)}
+                {(idea.tags||[]).map(t=><Chip key={t} color={C.textMuted}>#{t}</Chip>)}
                 <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.textMuted,marginLeft:"auto"}}>{idea.createdAt}</span>
               </Row>
             </Card>
