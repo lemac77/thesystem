@@ -1,13 +1,17 @@
 name: Daily Notifications
 
+# Orari in UTC. Ora solare (CET, UTC+1): 07:30 / 15:00 / 21:30 / dom 19:00.
+# Con l'ora legale (CEST, UTC+2) arrivano un'ora dopo.
 on:
   schedule:
-    - cron: '0 7 * * *'
-    - cron: '0 18 * * *'
+    - cron: '30 6 * * *'   # mattina: mantra + presa del giorno
+    - cron: '0 14 * * *'   # pomeriggio: blocco 90 minuti
+    - cron: '30 20 * * *'  # sera: chiudi la giornata
+    - cron: '0 18 * * 0'   # domenica: revisione settimanale
   workflow_dispatch:
     inputs:
       type:
-        description: 'morning o evening'
+        description: 'morning, focus, evening o weekly'
         required: false
         default: 'morning'
 
@@ -15,30 +19,55 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send morning notification
-        if: github.event.schedule == '0 7 * * *' || github.event.inputs.type == 'morning'
+      - name: Send notification
+        env:
+          ONESIGNAL_API_KEY: ${{ secrets.ONESIGNAL_API_KEY }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_TYPE: ${{ github.event.inputs.type }}
         run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Basic ${{ secrets.ONESIGNAL_API_KEY }}" \
-            -d '{
-              "app_id": "0cf17851-6b75-4374-b5a0-2d1a41200a62",
-              "included_segments": ["All"],
-              "headings": {"en": "⚡ The System"},
-              "contents": {"en": "Controlla le tue task di oggi. Nessuna scusa."}
-            }' \
-            https://onesignal.com/api/v1/notifications
+          TYPE="$INPUT_TYPE"
+          case "$SCHEDULE" in
+            '30 6 * * *')  TYPE=morning ;;
+            '0 14 * * *')  TYPE=focus ;;
+            '30 20 * * *') TYPE=evening ;;
+            '0 18 * * 0')  TYPE=weekly ;;
+          esac
 
-      - name: Send evening notification
-        if: github.event.schedule == '0 18 * * *' || github.event.inputs.type == 'evening'
-        run: |
-          curl -X POST \
+          MANTRA=$(shuf -n1 -e \
+            "Il mondo non ti deve niente. Quello che vuoi te lo prendi." \
+            "Vuoi pace? Diventa abbastanza forte da proteggerla." \
+            "Vuoi grandezza? Smetti di aspettarla senza sacrifici." \
+            "Rafforza ciò che è debole." \
+            "Continua a spingere anche quando pensi di aver dato tutto." \
+            "Non lamentarti dei limiti: superali." \
+            "Chi aspetta che il mondo lo accontenti resta prigioniero.")
+
+          case "$TYPE" in
+            morning)
+              TITLE="⚡ Nessuno te lo regala"
+              BODY="$MANTRA Oggi cosa ti prendi? Scrivilo nel Protocollo." ;;
+            focus)
+              TITLE="⚔️ Paga il prezzo"
+              BODY="Blocco da 90 minuti. Telefono in un'altra stanza. Adesso." ;;
+            evening)
+              TITLE="📓 Chiudi la giornata"
+              BODY="L'hai presa o no? Segna le regole, chiudi il Protocollo e compila il Diario." ;;
+            weekly)
+              TITLE="★ Revisione settimanale"
+              BODY="Su quale regola sei stato più scarso? Rendila il focus della settimana." ;;
+            *) echo "Tipo sconosciuto: $TYPE"; exit 1 ;;
+          esac
+
+          jq -n --arg t "$TITLE" --arg b "$BODY" '{
+            app_id: "0cf17851-6b75-4374-b5a0-2d1a41200a62",
+            included_segments: ["All"],
+            headings: {en: $t},
+            contents: {en: $b},
+            url: "https://lemac77.github.io/thesystem/?tab=protocollo"
+          }' > payload.json
+
+          curl -sS -X POST \
             -H "Content-Type: application/json" \
-            -H "Authorization: Basic ${{ secrets.ONESIGNAL_API_KEY }}" \
-            -d '{
-              "app_id": "0cf17851-6b75-4374-b5a0-2d1a41200a62",
-              "included_segments": ["All"],
-              "headings": {"en": "📓 The System"},
-              "contents": {"en": "Compila il resoconto della giornata nel Diario."}
-            }' \
+            -H "Authorization: Basic $ONESIGNAL_API_KEY" \
+            -d @payload.json \
             https://onesignal.com/api/v1/notifications

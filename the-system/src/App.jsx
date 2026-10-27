@@ -126,6 +126,7 @@ const DB = {
       DB.setSetting("last_reset",s.lastReset), DB.setSetting("api_keys",s.apiKeys),
       DB.setSetting("smoke_log",s.smokeLog||{}), DB.setSetting("focus_log",s.focusLog||{}),
       DB.setSetting("projects",s.projects||[]),
+      DB.setSetting("mantra_log",s.mantraLog||{}), DB.setSetting("mantra_cfg",s.mantraCfg||{}),
     ]);
   },
   pullAll: async () => {
@@ -133,7 +134,7 @@ const DB = {
     try {
       const [clients,leads,quests,tasks,ideas,goals,notes,payments,
         workoutLog,dietLog,moodLog,weightLog,habitLog,habits,
-        slotDays,slotStart,lastReset,apiKeys,smokeLog,focusLog,projects] = await Promise.all([
+        slotDays,slotStart,lastReset,apiKeys,smokeLog,focusLog,projects,mantraLog,mantraCfg] = await Promise.all([
         DB.getAll("clients",[]), DB.getAll("leads",[]), DB.getAll("quests",[]),
         DB.getAll("tasks",[]), DB.getAll("ideas",[]), DB.getAll("goals",[]),
         DB.getAll("notes",[]), DB.getAll("payments",[]),
@@ -144,10 +145,11 @@ const DB = {
         DB.getSetting("last_reset",""), DB.getSetting("api_keys",{apify:"",anthropic:""}),
         DB.getSetting("smoke_log",{}), DB.getSetting("focus_log",{}),
         DB.getSetting("projects",[]),
+        DB.getSetting("mantra_log",null), DB.getSetting("mantra_cfg",null),
       ]);
       return {clients,leads,quests,tasks,ideas,goals,notes,payments,
         workoutLog,dietLog,moodLog,weightLog,habitLog,habits,
-        slotDays,slotStart,lastReset,apiKeys,smokeLog,focusLog,projects};
+        slotDays,slotStart,lastReset,apiKeys,smokeLog,focusLog,projects,mantraLog,mantraCfg};
     } catch { return null; }
   },
 };
@@ -3198,8 +3200,213 @@ const SettingsView = ({quests,setQuests,clients,leads,tasks,ideas,goals,notes,pa
 };
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
+// ─── PROTOCOLLO (MANTRA) ─────────────────────────────────────────────────────
+const MANTRA_SHORT = "Nessuno me lo regala. Me lo prendo.";
+const MANTRA_LINES = [
+  "Il mondo non mi deve niente. Quello che voglio me lo prendo.",
+  "Voglio pace? Divento abbastanza forte da proteggerla.",
+  "Voglio grandezza? Smetto di aspettarla senza sacrifici.",
+  "Voglio una vita che mi soddisfi? Le do una ragione.",
+  "Mi prendo la responsabilità di ciò che desidero.",
+  "Rafforzo ciò che è debole.",
+  "Continuo a spingere anche quando penso di aver dato tutto.",
+  "Non mi lamento dei limiti: li supero.",
+  "Chi aspetta che il mondo lo accontenti resta prigioniero. Io no.",
+];
+const DEFAULT_PROTO_RULES = [
+  {title:"Divento forte", desc:"Allenamento o 12k passi. Niente \"domani recupero\"."},
+  {title:"Pago il prezzo", desc:"90 minuti di lavoro profondo, telefono in un'altra stanza."},
+  {title:"Rafforzo il debole", desc:"30 minuti sul punto debole che eviti."},
+  {title:"Non mi lamento", desc:"Ogni lamentela diventa un'azione entro un'ora. Se no, zitto."},
+];
+const localDay = (d=new Date()) => { const x=new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,10); };
+const shiftDay = (ds, n) => { const d=new Date(ds+"T12:00:00"); d.setDate(d.getDate()+n); return localDay(d); };
+const isoWeek = (ds) => { const d=new Date(ds+"T12:00:00"); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day+3); const y=d.getFullYear(); const w1=new Date(y,0,4); const wk=1+Math.round(((d-w1)/86400000-3+((w1.getDay()+6)%7))/7); return `${y}-W${String(wk).padStart(2,"0")}`; };
+const protoScore = (entry, n) => entry?.rules ? Array.from({length:n},(_,i)=>!!entry.rules[i]).filter(Boolean).length : 0;
+const scoreColor = (s, n=4) => s===null ? C.border : s>=n ? C.gold : s>=3 ? C.success : s>=2 ? C.accent : s>=1 ? C.orange : C.danger;
+
+const ProtocolloView = ({mantraLog={}, setMantraLog, mantraCfg={}, setMantraCfg, anthropicKey}) => {
+  const today = localDay();
+  const yesterday = shiftDay(today,-1);
+  const rules = mantraCfg.rules?.length ? mantraCfg.rules : DEFAULT_PROTO_RULES;
+  const N = rules.length;
+  const entry = mantraLog[today] || {};
+  const score = protoScore(entry, N);
+  const week = isoWeek(today);
+  const focusIdx = mantraCfg.weekFocus?.[week];
+  const [showMantra, setShowMantra] = useState(false);
+  const [editRules, setEditRules] = useState(false);
+  const [rulesDraft, setRulesDraft] = useState(rules);
+  const [penalty, setPenalty] = useState(false);
+  const [takeDraft, setTakeDraft] = useState(entry.take||"");
+  useEffect(()=>{ setTakeDraft(entry.take||""); },[entry.take, today]);
+  const hour = new Date().getHours();
+  const isSunday = new Date().getDay()===0;
+
+  const update = (patch) => setMantraLog(l => ({...l, [today]: {...(l[today]||{}), ...patch}}));
+  const toggleRule = (i) => { if(entry.closed) return; update({rules: {...(entry.rules||{}), [i]: !entry.rules?.[i]}}); };
+
+  // Streak: giorni consecutivi con punteggio >= 3 (oggi conta solo se già >= 3)
+  let streak = 0;
+  { let d = score>=3 ? today : yesterday;
+    while(mantraLog[d] && protoScore(mantraLog[d],N)>=3){ streak++; d=shiftDay(d,-1); } }
+  const ySc = mantraLog[yesterday] ? protoScore(mantraLog[yesterday],N) : 0;
+  const twoZeroRisk = ySc===0 && score===0;
+
+  const days30 = Array.from({length:30},(_,i)=>shiftDay(today,i-29));
+  const logged = days30.filter(d=>mantraLog[d]);
+  const avg30 = logged.length ? logged.reduce((s,d)=>s+protoScore(mantraLog[d],N),0)/logged.length : null;
+  const takes = days30.filter(d=>mantraLog[d]?.took!==undefined && mantraLog[d]?.took!==null);
+  const tookPct = takes.length ? Math.round(takes.filter(d=>mantraLog[d].took).length/takes.length*100) : null;
+
+  const closeDay = () => {
+    update({closed:true, score});
+    if(score < 3) setPenalty(true);
+  };
+  const share = async () => {
+    const txt = `THE SYSTEM // PROTOCOLLO ${today.split("-").reverse().join("/")}\nPunteggio: ${score}/${N}\nPresa del giorno: ${entry.take||"-"} → ${entry.took===true?"PRESA":entry.took===false?"NON PRESA":"?"}\nStreak: ${streak} giorni\n${MANTRA_SHORT}`;
+    try { if(navigator.share){ await navigator.share({text:txt}); return; } } catch { return; }
+    window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`,"_blank");
+  };
+
+  const phase = hour < 12 ? "MATTINA" : hour < 19 ? "GIORNATA" : "SERA";
+  const mono = {fontFamily:"'Share Tech Mono',monospace"};
+  const raj = {fontFamily:"'Rajdhani',sans-serif"};
+
+  return (
+    <>
+    <div className="fi">
+      <Section title="Protocollo" subtitle={`// ${phase} · ${today.split("-").reverse().join("/")}`}
+        action={<Btn variant="ghost" size="sm" onClick={()=>setShowMantra(!showMantra)}>{showMantra?"Chiudi":"Mantra"}</Btn>}>
+
+        {/* MANTRA */}
+        <Card glow color={C.gold} style={{marginBottom:14,borderColor:C.gold+"44",padding:"20px 18px"}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:"clamp(18px,2.4vw,28px)",fontWeight:900,color:C.gold,lineHeight:1.25,letterSpacing:"0.04em",textShadow:`0 0 24px ${C.gold}33`}}>{MANTRA_SHORT}</div>
+          {showMantra && (
+            <div style={{marginTop:14,borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+              {MANTRA_LINES.map((l,i)=>(<div key={i} style={{...raj,fontSize:17,color:i===0||i===MANTRA_LINES.length-1?C.text:C.textDim,lineHeight:1.7,fontWeight:i===0||i===MANTRA_LINES.length-1?700:500}}>{l}</div>))}
+            </div>
+          )}
+        </Card>
+
+        {/* WARNINGS */}
+        {twoZeroRisk && hour>=12 && !entry.closed && (
+          <Card style={{marginBottom:14,borderColor:C.danger+"88",background:C.dangerDim}}>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:15,color:C.danger,letterSpacing:"0.12em"}}>⚠ ALLERTA DI SISTEMA</div>
+            <div style={{...mono,fontSize:14,color:C.text,marginTop:6}}>Ieri zero. Oggi ancora zero. Mai due zeri di fila: completa almeno una regola adesso.</div>
+          </Card>
+        )}
+        {isSunday && focusIdx===undefined && (
+          <Card style={{marginBottom:14,borderColor:C.gold+"66"}}>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:14,color:C.gold,letterSpacing:"0.12em"}}>REVISIONE SETTIMANALE</div>
+            <div style={{...mono,fontSize:14,color:C.textDim,marginTop:6}}>Su quale regola sei stato più scarso? Toccala con ★ per renderla il focus della settimana.</div>
+          </Card>
+        )}
+
+        {/* PRESA DEL GIORNO */}
+        <Card style={{marginBottom:14}}>
+          <Label color={C.accent}>Oggi cosa mi prendo?</Label>
+          <Row gap={8} style={{alignItems:"flex-start"}}>
+            <Input value={takeDraft} onChange={e=>setTakeDraft(e.target.value)} onBlur={()=>takeDraft!==(entry.take||"")&&update({take:takeDraft.trim()})} onKeyDown={e=>{if(e.key==="Enter"){update({take:takeDraft.trim()});e.target.blur();}}} placeholder="Una cosa sola. Concreta." style={{marginBottom:0}} disabled={entry.closed}/>
+          </Row>
+          {entry.take && (
+            <div style={{marginTop:12}}>
+              <Label>L'ho presa?</Label>
+              <Row gap={8}>
+                <Btn variant={entry.took===true?"success":"ghost"} style={{flex:1,justifyContent:"center"}} onClick={()=>!entry.closed&&update({took:true,why:""})}>Presa</Btn>
+                <Btn variant="ghost" style={{flex:1,justifyContent:"center",...(entry.took===false?{borderColor:C.danger,color:C.danger,background:C.dangerDim}:{})}} onClick={()=>!entry.closed&&update({took:false})}>Non presa</Btn>
+              </Row>
+              {entry.took===false && (
+                <Input value={entry.why||""} onChange={e=>update({why:e.target.value})} placeholder="Perché? Mezza riga, niente processi." style={{marginTop:10,marginBottom:0}} disabled={entry.closed}/>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* REGOLE */}
+        <Card glow style={{marginBottom:14}}>
+          <Row style={{justifyContent:"space-between",marginBottom:12}}>
+            <Label color={C.accent}>Daily Quest · Regole</Label>
+            <div style={{fontFamily:"'Cinzel',serif",fontSize:26,fontWeight:900,color:scoreColor(score,N),lineHeight:1}}>{score}<span style={{fontSize:14,color:C.textDim}}>/{N}</span></div>
+          </Row>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {rules.map((r,i)=>{
+              const done = !!entry.rules?.[i];
+              const focus = focusIdx===i;
+              return (
+                <div key={i} onClick={()=>toggleRule(i)} style={{display:"flex",gap:12,alignItems:"center",padding:"12px 14px",borderRadius:8,cursor:entry.closed?"default":"pointer",background:done?C.successDim:C.bg,border:`1px solid ${focus?C.gold+"aa":done?C.success+"66":C.border}`,transition:"all .2s"}}>
+                  <div style={{width:22,height:22,borderRadius:5,flexShrink:0,border:`1.5px solid ${done?C.success:C.borderHi}`,background:done?C.success:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:C.bg,fontWeight:900,fontSize:14}}>{done?"✓":""}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{...raj,fontSize:18,fontWeight:700,color:done?C.success:C.text,letterSpacing:"0.04em"}}>{r.title}{focus&&<span style={{color:C.gold,fontSize:13,marginLeft:8,letterSpacing:"0.12em"}}>FOCUS</span>}</div>
+                    <div style={{...mono,fontSize:13,color:C.textDim,marginTop:2,lineHeight:1.4}}>{r.desc}</div>
+                  </div>
+                  <button title="Focus della settimana" onClick={e=>{e.stopPropagation();setMantraCfg(c=>({...c,weekFocus:{...(c.weekFocus||{}),[week]:focus?undefined:i}}));}} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:focus?C.gold:C.textMuted,padding:4}}>★</button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{marginTop:14}}>
+            {!entry.closed
+              ? <Btn style={{width:"100%",justifyContent:"center",padding:"12px"}} onClick={closeDay}>[ CHIUDI LA GIORNATA ]</Btn>
+              : <Row gap={8}>
+                  <div style={{flex:1,...mono,fontSize:13,color:score>=3?C.success:C.danger}}>{score>=3?"GIORNATA SUPERATA.":"SOTTO SOGLIA. PENALITÀ ASSEGNATA."}</div>
+                  <Btn variant="ghost" size="sm" onClick={()=>update({closed:false})}>Riapri</Btn>
+                </Row>}
+          </div>
+        </Card>
+
+        {/* STATS */}
+        <Grid cols={3} gap={8}>
+          <StatBox label="Streak" value={streak} sub="giorni ≥3" color={streak>=7?C.gold:C.accent}/>
+          <StatBox label="Media 30gg" value={avg30===null?"-":avg30.toFixed(1)} sub={`/${N}`} color={avg30===null?C.textDim:scoreColor(Math.round(avg30),N)}/>
+          <StatBox label="Prese" value={tookPct===null?"-":tookPct+"%"} sub="30 giorni" color={C.purple}/>
+        </Grid>
+
+        {/* GRIGLIA 30 GIORNI */}
+        <Card style={{marginTop:14}}>
+          <Label>Ultimi 30 giorni</Label>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:5,marginTop:6}}>
+            {days30.map(d=>{
+              const e = mantraLog[d]; const s = e ? protoScore(e,N) : null;
+              return <div key={d} title={`${d}: ${s===null?"-":s+"/"+N}`} style={{aspectRatio:"1",borderRadius:4,background:s===null?C.bg:scoreColor(s,N)+(s===0?"55":"cc"),border:`1px solid ${d===today?C.accent:C.border}`}}/>;
+            })}
+          </div>
+          {avg30!==null && logged.length>=7 && (
+            <div style={{...mono,fontSize:13,color:C.textDim,marginTop:12,lineHeight:1.5}}>
+              {avg30>=3 ? "▲ Media sopra 3: alza l'asticella di una regola." : avg30<2.5 ? "▼ Media sotto 2,5: non aggiungere niente. Trova dove molli." : "■ Tieni il ritmo. Non mollare adesso."}
+            </div>
+          )}
+        </Card>
+
+        <Row gap={8} style={{marginTop:14}}>
+          <Btn variant="gold" style={{flex:2,justifyContent:"center"}} onClick={share}>Invia report</Btn>
+          <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>{setRulesDraft(rules);setEditRules(true);}}>Regole</Btn>
+        </Row>
+      </Section>
+    </div>
+
+      {editRules && (
+        <Modal title="Modifica regole" onClose={()=>setEditRules(false)}>
+          {rulesDraft.map((r,i)=>(
+            <Card key={i} style={{marginBottom:10}}>
+              <Label>Regola {i+1}</Label>
+              <Input value={r.title} onChange={e=>setRulesDraft(d=>d.map((x,j)=>j===i?{...x,title:e.target.value}:x))} placeholder="Titolo"/>
+              <Input value={r.desc} onChange={e=>setRulesDraft(d=>d.map((x,j)=>j===i?{...x,desc:e.target.value}:x))} placeholder="Cosa devo fare, misurabile" style={{marginBottom:0}}/>
+            </Card>
+          ))}
+          <Row gap={8}>
+            <Btn variant="ghost" style={{flex:1,justifyContent:"center"}} onClick={()=>setRulesDraft(DEFAULT_PROTO_RULES)}>Default</Btn>
+            <Btn style={{flex:2,justifyContent:"center"}} onClick={()=>{setMantraCfg(c=>({...c,rules:rulesDraft.filter(r=>r.title.trim())}));setEditRules(false);}}>[ Salva ]</Btn>
+          </Row>
+        </Modal>
+      )}
+      {penalty && <PenaltyModal quest={{text:`Protocollo chiuso a ${score}/${N}`}} anthropicKey={anthropicKey} onClose={()=>setPenalty(false)}/>}
+    </>
+  );
+};
+
 export default function App() {
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState(()=>{ try { return new URLSearchParams(window.location.search).get("tab")||"dashboard"; } catch { return "dashboard"; } });
   const [loaded, setLoaded] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState(false);
@@ -3239,6 +3446,8 @@ export default function App() {
   const [smokeLog, setSmokeLog] = useState({});
   const [focusLog, setFocusLog] = useState({});
   const [projects, setProjects] = useState([]);
+  const [mantraLog, setMantraLog] = useState(()=>LS.get("ts_mantra_log",{}));
+  const [mantraCfg, setMantraCfg] = useState(()=>LS.get("ts_mantra_cfg",{}));
   const [slotDays, setSlotDays] = useState(0);
   const [slotStart, setSlotStart] = useState("");
   const [apiKeys, setApiKeys] = useState({apify:"",anthropic:""});
@@ -3290,6 +3499,8 @@ export default function App() {
           if(data.smokeLog) setSmokeLog(data.smokeLog);
           if(data.focusLog) setFocusLog(data.focusLog);
           if(data.projects) setProjects(data.projects);
+          if(data.mantraLog) setMantraLog(l=>({...l,...data.mantraLog}));
+          if(data.mantraCfg) setMantraCfg(data.mantraCfg);
           if(data.apiKeys) setApiKeys(data.apiKeys);
           // Tasks: Supabase wins
           if(data.tasks) setTasks(data.tasks);
@@ -3314,7 +3525,7 @@ export default function App() {
   },[session]);
 
   // Expose stateRef globally
-  stateRef.current = {clients,leads,quests,tasks,ideas,goals,notes,payments,workoutLog,dietLog,moodLog,weightLog,habitLog,habits,slotDays,slotStart,apiKeys,smokeLog,focusLog,projects};
+  stateRef.current = {clients,leads,quests,tasks,ideas,goals,notes,payments,workoutLog,dietLog,moodLog,weightLog,habitLog,habits,slotDays,slotStart,apiKeys,smokeLog,focusLog,projects,mantraLog,mantraCfg};
   window.__stateRef = stateRef;
 
   // Auto-push settings-based data (logs) to Supabase on change
@@ -3328,6 +3539,8 @@ export default function App() {
   useEffect(()=>{ if(loaded&&getSB()) DB.setSetting("focus_log",focusLog); },[focusLog]);
   useEffect(()=>{ if(loaded&&getSB()) DB.setSetting("slot_days",slotDays); },[slotDays]);
   useEffect(()=>{ if(loaded&&getSB()) DB.setSetting("slot_start",slotStart); },[slotStart]);
+  useEffect(()=>{ LS.set("ts_mantra_log",mantraLog); if(loaded&&getSB()) DB.setSetting("mantra_log",mantraLog); },[mantraLog]);
+  useEffect(()=>{ LS.set("ts_mantra_cfg",mantraCfg); if(loaded&&getSB()) DB.setSetting("mantra_cfg",mantraCfg); },[mantraCfg]);
 
   // AI quest generation on first open of day (weekdays only)
   useEffect(()=>{
@@ -3412,6 +3625,7 @@ Tono diretto, da coach.`;
 
   const nav = [
     {id:"dashboard",label:"Home"},
+    {id:"protocollo",label:"Protocollo"},
     {id:"quests",label:"Quest"},
     {id:"tasknotes",label:"Task"},
     {id:"agent",label:"Agent"},
@@ -3428,6 +3642,7 @@ Tono diretto, da coach.`;
 
   const NAV_ICONS = {
     dashboard:"M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+    protocollo:"M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z",
     quests:"M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
     tasknotes:"M9 11l3 3L22 4M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z",
     agent:"M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
@@ -3521,6 +3736,7 @@ Tono diretto, da coach.`;
         {loaded && (
           <>
             {tab==="dashboard" && <Dashboard clients={clients} leads={leads} quests={quests} tasks={tasks} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} goals={goals} payments={payments} onWeeklyReview={generateWeeklyReport} anthropicKey={apiKeys.anthropic} smokeLog={smokeLog} setSmokeLog={setSmokeLog}/>}
+            {tab==="protocollo" && <ProtocolloView mantraLog={mantraLog} setMantraLog={setMantraLog} mantraCfg={mantraCfg} setMantraCfg={setMantraCfg} anthropicKey={apiKeys.anthropic}/>}
             {tab==="quests" && <QuestsView quests={quests} setQuests={setQuests} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
             {tab==="tasknotes" && <TaskNotesView tasks={tasks} setTasks={setTasks} notes={notes} setNotes={setNotes} projects={projects} setProjects={setProjects} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys} clients={clients} apiKeys={apiKeys}/>}
             {tab==="agent" && <AgentView clients={clients} leads={leads} quests={quests} tasks={tasks} ideas={ideas} workoutLog={workoutLog} dietLog={dietLog} moodLog={moodLog} anthropicKey={apiKeys.anthropic} onNeedKey={openKeys}/>}
