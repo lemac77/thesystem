@@ -2,8 +2,8 @@ name: Daily Notifications
 
 on:
   schedule:
-    - cron: '0 7 * * *'
-    - cron: '0 18 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
       type:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send morning notification
-        if: github.event.schedule == '0 7 * * *' || github.event.inputs.type == 'morning'
+        if: github.event.schedule == '0 8 * * *' || github.event.inputs.type == 'morning'
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
@@ -30,7 +30,7 @@ jobs:
             https://onesignal.com/api/v1/notifications
 
       - name: Send evening notification
-        if: github.event.schedule == '0 18 * * *' || github.event.inputs.type == 'evening'
+        if: github.event.schedule == '0 22 * * *' || github.event.inputs.type == 'evening'
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \

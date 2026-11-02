@@ -620,7 +620,7 @@ const Dashboard = ({clients,leads,quests,tasks,workoutLog,dietLog,moodLog,goals,
   const todayDiet = dietLog[today];
   const moodAvg = todayMood?.scores ? (Object.values(todayMood.scores).reduce((a,b)=>a+b,0)/Object.values(todayMood.scores).length).toFixed(1) : null;
   const [todayCigs, setTodayCigs] = useState(()=>smokeLog[today]||0);
-  useEffect(()=>setTodayCigs(smokeLog[today]||0),[smokeLog,today]);
+  useEffect(()=>{ setTodayCigs(smokeLog[today]||0); },[smokeLog,today]);
 
   return (
     <div className="fi">
@@ -2346,7 +2346,7 @@ const AgentView = ({clients,leads,quests,tasks=[],ideas,workoutLog,dietLog,moodL
   const [loading, setLoading] = useState(false);
   const [taskClientId, setTaskClientId] = useState("");
   const endRef = useRef(null);
-  useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[msgs]);
+  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
 
   const send = async () => {
     if(!input.trim()||loading)return;
