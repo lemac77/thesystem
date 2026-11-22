@@ -1621,7 +1621,7 @@ XP da 5 a 25 in base alla difficoltà/importanza. Max 5 task. Niente altro oltre
               <button onClick={()=>toggle(t.id)} style={{width:17,height:17,borderRadius:3,border:`1px solid ${t.done?C.purple:C.borderHi}`,background:t.done?C.purple:"transparent",cursor:"pointer",flexShrink:0,fontSize:16,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
                 {t.done&&"✓"}
               </button>
-              <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:t.done?C.textDim:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span>
+              <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:t.done?C.textDim:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span><DueBadge iso={t.due_at} done={t.done}/>
               <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:t.done?C.purple:C.textMuted,flexShrink:0}}>+{t.xp||15}xp</span>
               <button onClick={()=>del(t.id)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
             </div>
@@ -2713,6 +2713,15 @@ const HabitsView = ({habits, setHabits, habitLog, setHabitLog}) => {
 
 // ─── TASK + NOTE (merged) ─────────────────────────────────────────────────────
 // ─── PROJECTS VIEW ───────────────────────────────────────────────────────────
+// Scadenza (impostata dal bot Telegram): mostra giorno/ora, rosso se scaduta e non fatta
+const DueBadge = ({iso, done}) => {
+  if(!iso) return null;
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return null;
+  const late = !done && d.getTime() < Date.now();
+  return <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:late?C.danger:C.textMuted,whiteSpace:"nowrap",marginLeft:6}}>⏰ {d.toLocaleString("it-IT",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",timeZone:"Europe/Rome"})}</span>;
+};
+
 const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
   const [modal, setModal] = useState(false);
   const [name, setName] = useState("");
@@ -2834,7 +2843,7 @@ const ProjectsView = ({projects, setProjects, apiKeys={}}) => {
                       <button onClick={()=>toggleTask(p.id,t.id)} style={{width:20,height:20,borderRadius:4,border:`2px solid ${t.done?p.color:C.border}`,background:t.done?p.color:"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
                         {t.done && <span style={{color:"#000",fontSize:12,fontWeight:900}}>✓</span>}
                       </button>
-                      <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:14,color:t.done?C.textMuted:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span>
+                      <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:14,color:t.done?C.textMuted:C.text,textDecoration:t.done?"line-through":"none",lineHeight:1.4}}>{t.text}</span><DueBadge iso={t.due} done={t.done}/>
                       <button onClick={()=>deleteTask(p.id,t.id)} style={{background:"none",border:"none",color:C.textMuted,cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
                     </Row>
                   ))}
