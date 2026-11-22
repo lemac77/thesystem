@@ -1302,18 +1302,10 @@ const LeadsView = ({leads, setLeads, apiKeys={}, onNeedKey=()=>{}}) => {
   };
   const sc = {"Da contattare":C.textDim,"Contattato":C.accent,"In trattativa":C.gold,"Perso":C.danger,"Convertito":C.success};
   const grouped = LEAD_STAGES.reduce((a,s)=>{a[s]=leads.filter(l=>l.stage===s);return a;},{});
-  const [subtab, setSubtab] = useState("pipeline");
+  const subtab = "pipeline";
 
   return (
     <div className="fi">
-      <div style={{display:"flex",gap:6,marginBottom:16}}>
-        {[["pipeline","Pipeline"],["hunter","Cerca"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setSubtab(k)} style={{flex:1,background:subtab===k?C.accentDim:"transparent",border:`1px solid ${subtab===k?C.accent:C.border}`,borderRadius:5,color:subtab===k?C.accent:C.textDim,padding:"9px",cursor:"pointer",fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:16,letterSpacing:"0.1em",textTransform:"uppercase",transition:"all .2s"}}>
-            {l}
-          </button>
-        ))}
-      </div>
-      {subtab==="hunter" && <HunterView onAddToLeads={lead=>{setLeads(p=>[...p,lead]);pushItem("leads",lead);setSubtab("pipeline");}} apiKeys={apiKeys} onNeedKey={onNeedKey}/>}
       {subtab==="pipeline" && (
         <Section title="Pipeline" action={<Btn size="sm" onClick={()=>open(null)}>+ New</Btn>}>
           {leads.length===0 && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.textMuted,padding:"20px 0",textAlign:"center"}}>// Pipeline vuota. Inizia la caccia.</div>}
@@ -2397,111 +2389,6 @@ Tono: diretto, da mentore, italiano. Conciso e utile.`;
 };
 
 // ─── HUNTER ──────────────────────────────────────────────────────────────────
-const HunterView = ({onAddToLeads, apiKeys, onNeedKey}) => {
-  const [zona, setZona] = useState("Vicenza");
-  const [settore, setSettore] = useState("Ristorazione");
-  const [qty, setQty] = useState(10);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [taskClientId, setTaskClientId] = useState("");
-  const [step, setStep] = useState("");
-  const [error, setError] = useState("");
-
-  const hunt = async () => {
-    if(!apiKeys.apify){onNeedKey();return;}
-    setLoading(true);setError("");setResults([]);
-    try {
-      setStep("Avvio scraping...");
-      const PROXY = "https://apify-worker.luciettiandrea.workers.dev/proxy";
-      const r1 = await fetch(`${PROXY}/v2/acts/compass~crawler-google-places/runs?token=${apiKeys.apify}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({searchStringsArray:[`${settore} ${zona} Italia`],maxCrawledPlacesPerSearch:qty,language:"it",countryCode:"it"})});
-      if(!r1.ok)throw new Error(`Apify ${r1.status}`);
-      const {data:{id:runId}} = await r1.json();
-      let ok=false,att=0;
-      while(!ok&&att<35){
-        await new Promise(r=>setTimeout(r,5000));
-        const s=await(await fetch(`${PROXY}/v2/actor-runs/${runId}?token=${apiKeys.apify}`)).json();
-        setStep(`${s.data?.status} (${att*5}s)`);
-        if(s.data?.status==="SUCCEEDED")ok=true;
-        else if(["FAILED","ABORTED","TIMED-OUT"].includes(s.data?.status))throw new Error(`Run ${s.data?.status}`);
-        att++;
-      }
-      if(!ok)throw new Error("Timeout");
-      const items=await(await fetch(`${PROXY}/v2/actor-runs/${runId}/dataset/items?token=${apiKeys.apify}&limit=${qty}`)).json();
-      setResults((Array.isArray(items)?items:[]).map(i=>({id:uid(),name:i.title||"N/D",address:i.address||"",phone:i.phone||"",website:i.website||"",rating:i.totalScore||null,reviewsCount:i.reviewsCount||0,category:i.categoryName||settore,generatedEmail:null,added:false})));
-    } catch(e){setError(e.message);}
-    finally{setLoading(false);setStep("");}
-  };
-
-  return (
-    <div className="fi">
-      <Section title="Lead Hunter">
-        <Card glow style={{marginBottom:14}}>
-          <Grid cols={2} gap={8}>
-            <div><Label>Zona</Label><Input value={zona} onChange={e=>setZona(e.target.value)} placeholder="Vicenza, Bassano..."/></div>
-            <div><Label>Settore</Label>
-              <Input value={settore} onChange={e=>setSettore(e.target.value)} placeholder="Es. Ristorazione, Retail..." style={{marginBottom:0}}/>
-            </div>
-          </Grid>
-          <div style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-              <Label>Numero risultati</Label>
-              <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.accent,fontWeight:700}}>{qty}</span>
-            </div>
-            <input type="range" min={5} max={50} step={5} value={qty} onChange={e=>setQty(Number(e.target.value))}
-              style={{width:"100%",accentColor:C.accent,cursor:"pointer"}}/>
-            <div style={{display:"flex",justifyContent:"space-between",fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.textMuted,marginTop:3}}>
-              <span>5</span><span>50</span>
-            </div>
-          </div>
-          <Btn style={{width:"100%",justifyContent:"center",padding:"11px",opacity:loading?.6:1}} onClick={hunt} disabled={loading}>
-            {loading?`[ ${step||"..."} ]`:`[ 🎯 CERCA ${qty} AZIENDE ]`}
-          </Btn>
-          {loading && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:C.textMuted,textAlign:"center",marginTop:7}}>// Apify Google Maps — attendere 30-90s</div>}
-        </Card>
-        {error && <Card style={{borderColor:C.danger+"55",marginBottom:10}}><div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.danger}}>{error}</div></Card>}
-        {results.length>0 && (
-          <>
-            <div style={{fontFamily:"'Rajdhani',sans-serif",fontSize:"clamp(9px,0.9vw,13px)",color:C.textDim,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:10}}>{results.length} aziende trovate</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {results.map(r=>(
-                <Card key={r.id} style={{borderColor:r.added?C.success+"55":C.border}}>
-                  <Row style={{justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontFamily:"'Rajdhani',sans-serif",fontWeight:700,color:C.text,fontSize:16,marginBottom:4}}>{r.name}</div>
-                      <Chip color={C.textDim}>{r.category}</Chip>
-                    </div>
-                    {r.rating && <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
-                      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.gold}}>⭐ {r.rating}</div>
-                      <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.textMuted}}>{r.reviewsCount} rec.</div>
-                    </div>}
-                  </Row>
-                  {/* Website sempre in evidenza */}
-                  {r.website
-                    ? <a href={r.website} target="_blank" rel="noopener noreferrer" style={{display:"block",fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.accent,marginBottom:6,wordBreak:"break-all",textDecoration:"none",padding:"6px 10px",background:C.accentDim,borderRadius:4,border:`1px solid ${C.borderHi}`}}>
-                        🌐 {r.website}
-                      </a>
-                    : <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:16,color:C.danger,marginBottom:6,padding:"5px 10px",background:`${C.danger}08`,borderRadius:4}}>⚠ Nessun sito web — ottimo target</div>
-                  }
-                  {r.address && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:C.textDim,marginBottom:2}}>📍 {r.address}</div>}
-                  {r.phone && <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:C.textDim,marginBottom:8}}>📞 {r.phone}</div>}
-                  <Row gap={7}>
-                    {!r.added
-                      ? <Btn variant="ghost" size="sm" style={{flex:1,justifyContent:"center"}} onClick={()=>{onAddToLeads({id:uid(),name:r.name,contact:r.phone||r.website||"",sector:r.category,stage:"Da contattare",source:"Lead Hunter",website:r.website||"",notes:r.address,createdAt:todayStr()});setResults(p=>p.map(x=>x.id===r.id?{...x,added:true}:x));}}>+ Pipeline</Btn>
-                      : <span style={{flex:1,fontFamily:"'Share Tech Mono',monospace",fontSize:15,color:C.success,padding:"6px"}}>✓ in pipeline</span>
-                    }
-
-                  </Row>
-
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
-      </Section>
-    </div>
-  );
-};
-
 // ─── WEIGHT ──────────────────────────────────────────────────────────────────
 
 const WeightView = ({weightLog, setWeightLog}) => {
